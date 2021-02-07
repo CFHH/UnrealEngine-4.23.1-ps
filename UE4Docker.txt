@@ -1,0 +1,356 @@
+安装ubuntu系统
+	https://blog.csdn.net/xiao_sheng_jun/article/details/103643390
+	https://blog.csdn.net/qq_41565526/article/details/88900171
+	注意一定要关闭安全启动，然后修改quite splash nomodeset，不然不能创建EFI系统分区，不要创建/boot、/tmp、/usr等分区，如果怕私人文件丢失，可以单创建/home分区
+安装钉钉
+	https://blog.csdn.net/longinus_li/article/details/82913409
+	下载在这里https://github.com/nashaofu/dingtalk/releases/
+
+
+安装显卡和vulkan SDK
+	显卡安装方法 https://blog.csdn.net/qiancaobaicheng/article/details/95096354
+	本机显卡驱动查询结果 https://www.nvidia.com/Download/driverResults.aspx/164073/en-us
+		Linux x64 (AMD64/EM64T) Display Driver
+		Version: 	450.80.02
+		Release Date: 	2020.9.30
+		Operating System: 	Linux 64-bit
+		Language: 	English (US)
+		File Size: 	134.52 MB 
+	打开UE4需要显卡支持vulkan
+		安装SDK https://vulkan.lunarg.com/doc/sdk/1.2.154.0/linux/getting_started_ubuntu.html
+	命令nvidia-smi可以用来查看GPU版本信息
+
+
+安装UE4
+	https://docs.unrealengine.com/en-US/ProgrammingAndScripting/ProgrammingWithCPP/index.html
+	https://github.com/EpicGames/UnrealEngine/tree/4.26
+	https://github.com/adamrehn
+	https://unrealcontainers.com/docs/preliminaries/quickstart#run
+	https://github.com/NVIDIA/nvidia-docker
+	https://github.com/adamrehn/ue4-docker
+	https://github.com/adamrehn/ue4-cloud-rendering-demo
+	当前github右边显示最新的版本是4.25.4，但是UE4 Cloud Rendering Demo里指定4.20.3
+	git clone -b 4.26 https://github.com/EpicGames/UnrealEngine.git
+	测试https://gitlab.com/ue4-test-projects
+	Pixel Stream版本 https://github.com/adamrehn/UnrealEngine
+
+
+Container介绍
+	https://www.ianlewis.org/en/container-runtimes-part-1-introduction-container-r
+	https://www.ianlewis.org/en/container-runtimes-part-2-anatomy-low-level-contai
+	https://www.ianlewis.org/en/container-runtimes-part-3-high-level-runtimes
+	https://www.ianlewis.org/en/container-runtimes-part-4-kubernetes-container-run
+	
+	
+安装Docker和Docker-compose
+	官方的步骤，https://docs.docker.com/engine/install/ubuntu/
+		https://docs.docker.com/compose/install/
+		允许非root用户使用 https://docs.docker.com/engine/install/linux-postinstall/，之后要重启
+	NVIDIA Container Toolkit给的简单步骤，https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#setting-up-docker
+	这样安装好像也行，sudo apt-get install docker docker-compose，docker和docker-ce有区别
+	
+	枚举镜像，docker images
+	枚举容器，docker ps，docker ps -a
+	进入docker，https://www.cnblogs.com/xhyan/p/6593075.html，docker exec -it DOCKER的ID /bin/bash
+	退出，exit
+	支持IPV6，https://blog.csdn.net/ffzhihua/article/details/96437880，https://docs.docker.com/config/daemon/ipv6/
+	
+	
+整体介绍
+	https://github.com/adamrehn
+	https://unrealcontainers.com/docs/preliminaries/quickstart#run
+
+
+安装NVIDIA Container Toolkit
+	https://github.com/NVIDIA/nvidia-docker
+	https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#installing-on-ubuntu-and-debian
+	https://github.com/NVIDIA/nvidia-docker/wiki/Installation-(Native-GPU-Support)#prerequisites
+	https://github.com/NVIDIA/nvidia-docker/wiki/Frequently-Asked-Questions
+	
+	
+安装Unreal Engine 4 Docker Containers
+	https://github.com/adamrehn/ue4-docker
+	https://docs.adamrehn.com/ue4-docker/read-these-first/introduction-to-ue4-docker
+	https://adamrehn.com/articles/tag/Unreal%20Engine/
+	https://hub.docker.com/r/adamrehn/ue4-runtime
+	真正安装在这里 https://docs.adamrehn.com/ue4-docker/configuration/configuring-linux
+	（FROM https://docs.adamrehn.com/ue4-docker/read-these-first/large-container-images-primer）虽然ue4-docker生成的容器映像目前大小都不超过100GB，但在Linux下构建过程至少需要300GB可用磁盘空间，在Windows下至少需要500GiB可用磁盘空间。构建完成后，可以使用ue4-docker clean命令清理多阶段构建遗留下来的临时层，并收回最终构建映像未占用的所有磁盘空间。docker system prune命令还可以用于清理系统上的任何标记图像没有使用的数据。
+
+
+安装UE4 Cloud Rendering Demo
+	https://github.com/adamrehn/ue4-cloud-rendering-demo
+	https://github.com/adamrehn/UnrealEngine/tree/4.23.1-pixelstreaming
+boost@conan出错	
+	网上类似问题，没有解决：https://stackoverflow.com/questions/61094087/conan-does-partial-install-of-boost-on-ubuntu-16-04
+	原因：可能需要ubuntu1804
+	解决办法：修改project/Dockerfile，找合适的机会重新安装，不能保证成功
+	#RUN ls /home/ue4/.conan/data/boost
+	#RUN rm /home/ue4/.conan/data/boost/1.67.0 -r -f
+	#RUN conan install boost/1.67.0@conan/stable
+CONAN
+	https://docs.conan.io/en/latest/installation.html
+	sudo pip3 install conan 否则安装在/home/ubuntu/.local/bin，没有加入PATH
+	一篇中文介绍 https://blog.csdn.net/lyu00002/article/details/86699175    conan search Poco* --remote=conan-center	
+IPV6（曾经报错，可能是无关问题）
+	https://jingyan.baidu.com/article/925f8cb88f8ec1c0dde056a2.html
+	ping命令没有apt-get install iputils-ping
+	ip6tables -t nat -A POSTROUTING -s 2001:db8:1::/64 -j MASQUERADE
+	ip6tables -t nat -L
+原项目的问题，根本没用到UE4Capture这个插件
+	#include "../../Plugins/UE4Capture/Source/UE4Capture/Public/CaptureGameMode.h"
+	class AStreamingDemoGameMode : public ACaptureGameMode
+
+
+*********************************************************************************************************************************************************
+*****PIXEL STREAMING*************************************************************************************************************************************
+*********************************************************************************************************************************************************
+	官方文档 https://docs.unrealengine.com/en-US/SharingAndReleasing/PixelStreaming/PixelStreamingIntro/index.html
+	官方DEMO https://docs.unrealengine.com/en-US/Resources/Showcases/PixelStreamingShowcase/index.html
+	官方     https://www.unrealengine.com/en-US/tech-blog/discover-pixel-streaming-real-time-distributed-content-for-any-device
+	adamrehn的文章		https://adamrehn.com/articles/pixel-streaming-in-linux-containers/
+	adamrehn修改后的引擎	https://github.com/adamrehn/UnrealEngine/tree/4.23.1-pixelstreaming
+	adamrehn的例子**	https://github.com/adamrehn/ue4-example-dockerfiles/tree/master/pixel-streaming/4.23
+	adamrehn的问题列表	https://github.com/adamrehn/pixel-streaming-linux/issues
+	支持NVENC的显卡列表 https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new
+*********************************************************************************************************
+直接在真机运行（非容器），游戏程序必须在窗口顶层
+	1、WebServer
+		cd ~/work/UnrealEngine4.23ps/Engine/Source/Programs/PixelStreaming/WebServers/SignallingWebServer
+			或cd ~/work/PSDemo/pkg/LinuxNoEditor/Engine/Source/Programs/PixelStreaming/WebServers/SignallingWebServer
+		npm install .
+		node ./cirrus.js
+	2、WebRTCProxy
+		cd ~/work/UnrealEngine4.23ps/Engine/Source/Programs/PixelStreaming/WebRTCProxy/bin
+			或cd ~/work/PSDemo/pkg/WebRTCProxy
+		./WebRTCProxy
+	3、游戏程序
+		cd ~/work/PSDemo/pkg/LinuxNoEditor
+		export NVIDIA_DRIVER_CAPABILITIES=$NVIDIA_DRIVER_CAPABILITIES,video
+		./PSDemo.sh -AudioMixer -opengl4
+*********************************************************************************************************
+操作中与官方文档不一致的地方（具体看adamrehn的例子中的3个Dockerfile）
+	一、Failed to initialize Pixel Streaming plugin because Nvidia NVENC was not installed
+		ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 {LinuxNoEditor目录}/{工程名字}/Binaries/Linux/libnvidia-encode.so.1
+		ln -s /usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1 libnvidia-encode.so.1
+	二、需要手动编译并运行WebRTCProxy
+		编译方法：在UE4源代码目录运行 make WebRTCProxy
+	三、运行参数
+		需要的 -AudioMixer -opengl4
+		不需要 -PixelStreamingIP=localhost -PixelStreamingPort=8888
+		没用的 -RenderOffScreen
+		视频质量差 -NvEncFrameRateNum=1
+*********************************************************************************************************
+在容器中运行，就避免游戏必须在窗口顶层的问题
+编引擎docker
+	ue4-docker build custom:4.23.1-pixelstreaming -repo=https://github.com/adamrehn/UnrealEngine.git -branch=4.23.1-pixelstreaming
+自己写的run.sh
+	#!/usr/bin/env bash
+	SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+	export HOST_UID=`id -u`
+	cd "$SCRIPT_DIR" && docker-compose up
+自己写的docker-compose.yml
+	version: "2.3"
+	services:
+
+	  demo:
+	    build: ./project
+	    image: ue4.23.1-pixel-streaming/demo:latest
+	    network_mode: "host"
+	    runtime: nvidia
+	    depends_on:
+	      - webserver
+	      - webrtcproxy
+	    volumes:
+	      - "/run/user/${HOST_UID}/pulse:/run/user/1000/pulse"
+
+	  webserver:
+	    build: ./server
+	    image: ue4.23.1-pixel-streaming/webserver:latest
+	    network_mode: "host"
+
+	  webrtcproxy:
+	    build: ./proxy
+	    image: ue4.23.1-pixel-streaming/webrtcproxy:latest
+	    network_mode: "host"
+修改project的dockerfile，增加参数
+	ENTRYPOINT ["/home/ue4/project/DummyProject.sh", "-AudioMixer", "-opengl4", "-NvEncFrameRateNum=1"]
+*********************************************************************************************************
+未解决的问题：
+	1、画面质量
+	2、操作延迟
+	3、不是所有的浏览器都支持
+		正确的数据 Received ICE candidate from Client 101 : {"candidate":"candidate:2205653058 1 udp 2113937151 a7b701d5-a973-4f96-aec1-901240db7ce8.local 39175 typ host generation 0 ufrag 2xzE network-cost 999","sdpMid":"2","sdpMLineIndex":2}
+		错误的数据 Cannot parse ICE Candidate from Client 103 : {"candidate":"","sdpMid":"2","sdpMLineIndex":2,"usernameFragment":"3e823454"}，没有candidate，proxy代码中根据clientid缓存不知道是否可行
+*********************************************************************************************************************************************************
+
+
+
+
+WEBRTC
+https://webrtc.org/
+https://github.com/webrtc
+https://www.codercto.com/a/92824.html
+
+
+
+
+
+
+
+UE4深度
+https://blog.csdn.net/weixin_41263449/article/details/107584536
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "../../Plugins/UE4Capture/Source/UE4Capture/Public/CaptureGameMode.h"
+class AStreamingDemoGameMode : public ACaptureGameMode
+
+
+# ERROR!!!boost/1.67.0@conan/stable: WARN: Lib folder doesn't exist, can't collect libraries: /home/ue4/.conan/data/boost/1.67.0/conan/stable/package/5ab84d6acfe1f23c4fae0ab88f26e3a396351ac9/lib
+#RUN ls /home/ue4/.conan/data/boost
+#RUN rm /home/ue4/.conan/data/boost/1.67.0 -r -f
+#RUN conan install boost/1.67.0@conan/stable
+
+
+
+
+
+
+
+
+FROM ubuntu:18.04
+
+# Disable interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# IPV6
+RUN apt-get update && apt-get install -y --no-install-recommends miredo \
+	net-tools
+
+# Install our build prerequisites
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	build-essential \
+	ca-certificates \
+	gengetopt \
+	git \
+	libmicrohttpd-dev \
+	libjansson-dev \
+	libssl-dev \
+	libsofia-sip-ua-dev \
+	libglib2.0-dev \
+	libopus-dev \
+	libogg-dev \
+	libcurl4-openssl-dev \
+	liblua5.3-dev \
+	libconfig-dev \
+	pkg-config \
+	gengetopt \
+	libtool \
+	automake
+
+# libsrtp
+RUN apt-get install -y --no-install-recommends wget
+RUN wget -P /tmp/libstr https://github.com/cisco/libsrtp/archive/v2.2.0.tar.gz
+WORKDIR /tmp/libstr
+RUN tar xfv v2.2.0.tar.gz
+WORKDIR /tmp/libstr/libsrtp-2.2.0
+RUN ./configure --prefix=/usr --enable-openssl
+RUN make shared_library && make install
+WORKDIR ~
+RUN rm -R /tmp/libstr
+
+# meson
+#RUN apt-get install -y --no-install-recommends meson
+RUN apt-get install -y python3 python3-pip
+RUN ln -s /usr/bin/python3.6 /usr/bin/python
+RUN pip3 install --user meson
+#RUN ~/.local/bin/meson --version
+
+# ninja
+RUN apt-get install -y --no-install-recommends re2c
+RUN git clone --progress --depth=1 "git://github.com/ninja-build/ninja.git" /tmp/ninja
+WORKDIR /tmp/ninja
+RUN ./configure.py --bootstrap && \
+	cp ninja /usr/bin/
+WORKDIR ~
+RUN rm -R /tmp/ninja
+
+# libnice-dev
+RUN git clone --progress --depth=1 "https://gitlab.freedesktop.org/libnice/libnice.git" /tmp/libnice
+WORKDIR /tmp/libnice
+RUN ~/.local/bin/meson --prefix=/usr build && \
+	ninja -C build && \
+	ninja -C build install
+WORKDIR ~
+RUN rm -R /tmp/libnice
+
+# Clone the Janus source code
+RUN git clone --progress --depth=1 -b v0.10.8 "https://github.com/meetecho/janus-gateway.git" /tmp/janus-gateway
+#RUN git clone --progress --depth=1 "https://github.com/meetecho/janus-gateway.git" /tmp/janus-gateway
+
+# Build Janus
+WORKDIR /tmp/janus-gateway
+RUN sh autogen.sh
+RUN ./configure --prefix=/opt/janus
+RUN make
+RUN make install
+RUN make configs
+
+# Clean up the source directory
+WORKDIR /opt/janus
+RUN rm -R /tmp/janus-gateway
+
+# Copy our custom configuration files into the image
+COPY config /tmp/config
+RUN cp ./etc/janus/janus.jcfg /tmp/config
+
+# Expose our TCP and UDP ports
+EXPOSE 5000/udp
+EXPOSE 5002/udp
+EXPOSE 8088
+EXPOSE 8089
+EXPOSE 8889
+EXPOSE 7088
+EXPOSE 7089
+
+# Set the Janus executable as the entrypoint and point it to our custom config files
+ENTRYPOINT [ "/opt/janus/bin/janus", "--configs-folder=/tmp/config" ]
+
+
+
+
