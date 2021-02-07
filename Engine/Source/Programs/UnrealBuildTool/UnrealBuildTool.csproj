@@ -12,7 +12,7 @@
     <AssemblyName>UnrealBuildTool</AssemblyName>
     <RunPostBuildEvent>OnOutputUpdated</RunPostBuildEvent>
     <IsWebBootstrapper>false</IsWebBootstrapper>
-    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
     <OldToolsVersion>3.5</OldToolsVersion>
@@ -311,7 +311,7 @@
 	  <ItemGroup>
 		<Reference Include="Windows">
 		  <!-- This is a dummy entry to throw off the parser in DotNETUtilities's CsProjectInfo which doesn't understand MSBuild functions -->
-		  <HintPath/>      
+		  <HintPath/>
 		  <HintPath>$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion)\Windows.winmd</HintPath>
 		  <!-- 16299 SDK (possibly others?) has ProductVersion == 10.0.16299 in the registry, but pathing needs the final .0 -->
 		  <HintPath Condition="'$([System.IO.File]::Exists(%(HintPath)))'=='false'">$(Windows10SdkPath)\UnionMetadata\$(Windows10SdkLatestVersion).0\Windows.winmd</HintPath>
@@ -444,18 +444,18 @@
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- The next two sections allow for GenerateProjectFiles script to hunt down "platform extension" C# files
        without them needing to be added to this project. If they were compiled in a separate assembly like
-	   rules files, we would need to make a huge amount of classes, etc public, which we definitely do not 
+	   rules files, we would need to make a huge amount of classes, etc public, which we definitely do not
 	   want to do. However, this does require that GenerateProjectFiles is run to create the References file
-	   below. 
+	   below.
        The PlatformExtensionCompile compile item compiles the files found in the References file. This indirection
-	   is used so that Visual Studio shows these files. (If the References file directly compiled files, the 
+	   is used so that Visual Studio shows these files. (If the References file directly compiled files, the
 	   files would not be visible in the Solution Explorer).
   -->
   <Import Project="..\..\..\Intermediate\ProjectFiles\UnrealBuildTool.csproj.References" Condition="Exists('..\..\..\Intermediate\ProjectFiles\UnrealBuildTool.csproj.References')" />
   <ItemGroup>
     <Compile Include="@(PlatformExtensionCompile)" />
   </ItemGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
