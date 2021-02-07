@@ -88,11 +88,7 @@ public class WebRTC : ModuleRules
 				// This is slightly different than the other platforms
 				string LibraryPath = Path.Combine(LinuxTrunk_WebRtcSdkPath, "lib", Target.Architecture, ConfigPath);
 
-				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "librtc_base.a"));
-				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "librtc_base_approved.a"));
-				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "librtc_xmllite.a"));
-				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "librtc_xmpp.a"));
-				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "libexpat.a"));
+				PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "libwebrtc.a"));
 			}
 			else if (Target.Platform == UnrealTargetPlatform.PS4)
 			{

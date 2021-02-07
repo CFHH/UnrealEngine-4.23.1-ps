@@ -18,16 +18,19 @@
 #include "CommonRenderResources.h"
 #include "Misc/MessageDialog.h"
 
-#if defined PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 // Disable macro redefinition warning for compatibility with Windows SDK 8+
-#	pragma warning(push)
-#		pragma warning(disable : 4005)	// macro redefinition
-#		include "Windows/AllowWindowsPlatformTypes.h"
-#			include "NvEncoder/nvEncodeAPI.h"
-#			include <d3d11.h>
-#		include "Windows/HideWindowsPlatformTypes.h"
-#		include "D3D11RHIPrivate.h"
-#	pragma warning(pop)
+	#pragma warning(push)
+		#pragma warning(disable : 4005)	// macro redefinition
+			#include "Windows/AllowWindowsPlatformTypes.h"
+			#include "NvEncoder/nvEncodeAPI.h"
+			#include "Windows/HideWindowsPlatformTypes.h"
+			#include "D3D11RHIPrivate.h"
+	#pragma warning(pop)
+#elif PLATFORM_LINUX
+	#include "NvEncoder/nvEncodeAPI.h"
+	#include "OpenGLDrv.h"
+	#include "OpenGLDrvPrivate.h"
 #endif
 
 DECLARE_CYCLE_STAT(TEXT("CopyBackBuffer"), STAT_NvEnc_CopyBackBuffer, STATGROUP_NvEnc);
@@ -40,10 +43,11 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("AsyncMode"), STAT_NvEnc_AsyncMode, STATGROUP_Nv
 #define BITSTREAM_SIZE 1024 * 1024 * 2
 #define NV_RESULT(NvFunction) NvFunction == NV_ENC_SUCCESS
 
-#if defined PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 #define CLOSE_EVENT_HANDLE(EventHandle) CloseHandle(EventHandle);
 #else
 #define CLOSE_EVENT_HANDLE(EventHandle) fclose((FILE*)EventHandle);
+typedef void* HANDLE;
 #endif
 
 class FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl
@@ -75,8 +79,23 @@ private:
 		uint64					CaptureTimeStamp = 0;
 		uint64					EncodeStartTimeStamp = 0;
 		uint64					EncodeEndTimeStamp = 0;
+		uint32					CurrentX, CurrentY;
 
 		FThreadSafeBool bEncoding = false;
+
+		uint32 GetCurrentSizeX(){
+			if(ResolvedBackBuffer){
+				return ResolvedBackBuffer->GetSizeX();
+			}
+			return CurrentX;
+		}
+
+		uint32 GetCurrentSizeY(){
+			if(ResolvedBackBuffer){
+				return ResolvedBackBuffer->GetSizeY();
+			}
+			return CurrentY;
+		}
 	};
 
 	struct FRHITransferRenderTargetToNvEnc final : public FRHICommand<FRHITransferRenderTargetToNvEnc>
@@ -156,17 +175,17 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::FPixelStreamin
 	, EncodedFrameReadyCallback(InEncodedFrameReadyCallback)
 {
 	// Bind to the delegates that are triggered when render thread is created or destroyed, so the encoder thread can act accordingly.
-	FCoreDelegates::PostRenderingThreadCreated.AddRaw(this, &FPixelStreamingNvVideoEncoderImpl::PostRenderingThreadCreated);
-	FCoreDelegates::PreRenderingThreadDestroyed.AddRaw(this, &FPixelStreamingNvVideoEncoderImpl::PreRenderingThreadDestroyed);
+	FCoreDelegates::PostRenderingThreadCreated.AddRaw(this, &FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::PostRenderingThreadCreated);
+	FCoreDelegates::PreRenderingThreadDestroyed.AddRaw(this, &FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::PreRenderingThreadDestroyed);
 
 	uint32 Width = Settings.Width;
 	uint32 Height = Settings.Height;
 
 	FString RHIName = GDynamicRHI->GetName();
-	check(RHIName == TEXT("D3D11"));
-	ID3D11Device* Device = static_cast<ID3D11Device*>(GDynamicRHI->RHIGetNativeDevice());
-	checkf(Device != nullptr, TEXT("Cannot initialize NvEnc with invalid device"));
+	
+	check(RHIName == TEXT("D3D11") || RHIName == TEXT("OpenGL"));
 	checkf(Width > 0 && Height > 0, TEXT("Cannot initialize NvEnc with invalid width/height"));
+
 	_NVENCSTATUS Result;
 	bool bWebSocketStreaming = FParse::Param(FCommandLine::Get(), TEXT("WebSocketStreaming"));
 
@@ -176,32 +195,59 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::FPixelStreamin
 		typedef NVENCSTATUS(NVENCAPI *NVENCAPIPROC)(NV_ENCODE_API_FUNCTION_LIST*);
 		NVENCAPIPROC NvEncodeAPICreateInstanceFunc;
 
-#if defined PLATFORM_WINDOWS
-#	pragma warning(push)
-#		pragma warning(disable: 4191) // https://stackoverflow.com/a/4215425/453271
-		NvEncodeAPICreateInstanceFunc = (NVENCAPIPROC)FPlatformProcess::GetDllExport((HMODULE)DllHandle, TEXT("NvEncodeAPICreateInstance"));
-#	pragma warning(pop)
-#else
-		NvEncodeAPICreateInstanceFunc = (NVENCAPIPROC)dlsym(DllHandle, "NvEncodeAPICreateInstance");
-#endif
+		// Bind shared object
+		#if PLATFORM_WINDOWS
+
+			// Bind Dynamic linked library
+			#pragma warning(push)
+				#pragma warning(disable: 4191) // https://stackoverflow.com/a/4215425/453271
+				NvEncodeAPICreateInstanceFunc = (NVENCAPIPROC)FPlatformProcess::GetDllExport((HMODULE)DllHandle, TEXT("NvEncodeAPICreateInstance"));
+			#pragma warning(pop)
+		#else
+			// Bind Shared Object
+			NvEncodeAPICreateInstanceFunc = (NVENCAPIPROC)dlsym(DllHandle, "NvEncodeAPICreateInstance");
+		#endif
+
 		checkf(NvEncodeAPICreateInstanceFunc != nullptr, TEXT("NvEncodeAPICreateInstance failed"));
+		
 		NvEncodeAPI.Reset(new NV_ENCODE_API_FUNCTION_LIST);
 		FMemory::Memzero(NvEncodeAPI.Get(), sizeof(NV_ENCODE_API_FUNCTION_LIST));
 		NvEncodeAPI->version = NV_ENCODE_API_FUNCTION_LIST_VER;
 		Result = NvEncodeAPICreateInstanceFunc(NvEncodeAPI.Get());
 		checkf(NV_RESULT(Result), TEXT("Unable to create NvEnc API function list (status: %d)"), Result);
 	}
-	// Open an encoding session
-	{
-		NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS OpenEncodeSessionExParams;
-		FMemory::Memzero(OpenEncodeSessionExParams);
-		OpenEncodeSessionExParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
-		OpenEncodeSessionExParams.device = Device;
-		OpenEncodeSessionExParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;	// Currently only DX11 is supported
-		OpenEncodeSessionExParams.apiVersion = NVENCAPI_VERSION;
-		Result = NvEncodeAPI->nvEncOpenEncodeSessionEx(&OpenEncodeSessionExParams, &EncoderInterface);
-		checkf(NV_RESULT(Result), TEXT("Unable to open NvEnc encoding session (status: %d)"), Result);
-	}	
+	
+	#if PLATFORM_WINDOWS
+		ID3D11Device* Device = static_cast<ID3D11Device*>(GDynamicRHI->RHIGetNativeDevice());
+		checkf(Device != nullptr, TEXT("Cannot initialize NvEnc with invalid device"));
+		
+		// Open an encoding session
+		{
+			NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS OpenEncodeSessionExParams;
+			FMemory::Memzero(OpenEncodeSessionExParams);
+			OpenEncodeSessionExParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
+			OpenEncodeSessionExParams.device = Device;
+			OpenEncodeSessionExParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;	// Currently only DX11 is supported
+			OpenEncodeSessionExParams.apiVersion = NVENCAPI_VERSION;
+			Result = NvEncodeAPI->nvEncOpenEncodeSessionEx(&OpenEncodeSessionExParams, &EncoderInterface);
+			checkf(NV_RESULT(Result), TEXT("Unable to open NvEnc encoding session (status: %d)"), Result);
+		}
+	} 
+	#elif PLATFORM_LINUX
+		// Open an encoding session
+		{
+			NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS OpenEncodeSessionExParams;
+			FMemory::Memzero(OpenEncodeSessionExParams);
+			OpenEncodeSessionExParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
+			OpenEncodeSessionExParams.device = NULL;
+			OpenEncodeSessionExParams.deviceType = NV_ENC_DEVICE_TYPE_OPENGL;
+			OpenEncodeSessionExParams.apiVersion = NVENCAPI_VERSION;				
+			Result = NvEncodeAPI->nvEncOpenEncodeSessionEx(&OpenEncodeSessionExParams, &EncoderInterface);
+			UE_LOG(PixelStreaming, Log, TEXT("Open NvEnc encoding session status: %d"), Result);
+			checkf(NV_RESULT(Result), TEXT("Unable to open NvEnc encoding session (status: %d)"), Result);
+		}
+	#endif
+	
 	// Set initialization parameters
 	{
 		FMemory::Memzero(NvEncInitializeParams);
@@ -280,14 +326,15 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::FPixelStreamin
 		}
 
 		// maybe doesn't have an effect, high level is chosen because we aim at high bitrate
-		NvEncConfig.encodeCodecConfig.h264Config.level = NV_ENC_LEVEL_H264_52;			
+		NvEncConfig.encodeCodecConfig.h264Config.level = NV_ENC_LEVEL_H264_52;
 		FString NvEncH264ConfigLevel;
 		FParse::Value(FCommandLine::Get(), TEXT("NvEncH264ConfigLevel="), NvEncH264ConfigLevel);
 		if (NvEncH264ConfigLevel == TEXT("NV_ENC_LEVEL_H264_51"))
 		{
 			NvEncConfig.encodeCodecConfig.h264Config.level = NV_ENC_LEVEL_H264_51;
 		}
-	}		
+	}
+	
 	// Get encoder capability
 	{
 		NV_ENC_CAPS_PARAM CapsParam;
@@ -328,10 +375,12 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::~FPixelStreami
 		bExitEncoderThread = true;
 		// Trigger all frame events to release encoder thread waiting on them
 		// (we don't know here which frame it's waiting for)
+		#if PLATFORM_WINDOWS
 		for (FFrame& Frame : BufferedFrames)
 		{
 			SetEvent(Frame.OutputFrame.EventHandle);
 		}
+		#endif
 		// Exit encoder runnable thread before shutting down NvEnc interface
 		EncoderThread->Join();
 		// Increment the counter, so that if any pending render commands sent from EncoderCheckLoop 
@@ -481,6 +530,7 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::EncoderCh
 	{
 		FFrame& Frame = BufferedFrames[CurrentIndex];
 
+		#if PLATFORM_WINDOWS
 		{
 			SCOPE_CYCLE_COUNTER(STAT_NvEnc_WaitForEncodeEvent);
 			DWORD Result = WaitForSingleObject(Frame.OutputFrame.EventHandle, INFINITE);
@@ -490,15 +540,18 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::EncoderCh
 				return;
 			}
 		}
+		#endif
 
 		Frame.EncodeEndTimeStamp = NowMs();
-
+		
+		#if PLATFORM_WINDOWS
 		ResetEvent(Frame.OutputFrame.EventHandle);
+		#endif
 		int32 CurrImplCounter = ImplCounter.GetValue();
 		// When resolution changes, render thread is stopped and later restarted from game thread.
 		// We can't enqueue render commands when render thread is stopped, so pause until render thread is restarted.
 		while (bWaitForRenderThreadToResume) {}
-		FPixelStreamingNvVideoEncoderImpl* This = this;
+		FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl* This = this;
 		FFrame* InFrame = &Frame;
 		ENQUEUE_RENDER_COMMAND(NvEncProcessFrame)(
 			[This, InFrame, CurrImplCounter](FRHICommandListImmediate& RHICmdList)
@@ -532,7 +585,7 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::EncodeFra
 	}
 
 	// When resolution changes, buffers need to be recreated
-	if (Frame.ResolvedBackBuffer->GetSizeX() != Settings.Width || Frame.ResolvedBackBuffer->GetSizeY() != Settings.Height)
+	if (Frame.GetCurrentSizeX() != Settings.Width || Frame.GetCurrentSizeY() != Settings.Height)
 	{
 		ReleaseFrameInputBuffer(Frame);
 		InitFrameInputBuffer(BackBuffer, Frame);
@@ -577,7 +630,9 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::TransferR
 	PicParams.inputWidth = NvEncInitializeParams.encodeWidth;
 	PicParams.inputHeight = NvEncInitializeParams.encodeHeight;
 	PicParams.outputBitstream = Frame.OutputFrame.BitstreamBuffer;
+	#if PLATFORM_WINDOWS
 	PicParams.completionEvent = Frame.OutputFrame.EventHandle;
+	#endif	
 	PicParams.inputTimeStamp = Frame.FrameIdx;
 	PicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
 
@@ -644,35 +699,97 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::ProcessFr
 	}
 }
 
+uint32_t GetWidthInBytes(const NV_ENC_BUFFER_FORMAT bufferFormat, const uint32_t width)
+{
+	switch (bufferFormat)
+	{
+		case NV_ENC_BUFFER_FORMAT_NV12:
+		case NV_ENC_BUFFER_FORMAT_YV12:
+		case NV_ENC_BUFFER_FORMAT_IYUV:
+		case NV_ENC_BUFFER_FORMAT_YUV444:
+			return width;
+		
+		case NV_ENC_BUFFER_FORMAT_YUV420_10BIT:
+		case NV_ENC_BUFFER_FORMAT_YUV444_10BIT:
+			return width * 2;
+		
+		case NV_ENC_BUFFER_FORMAT_ARGB:
+		case NV_ENC_BUFFER_FORMAT_ARGB10:
+		case NV_ENC_BUFFER_FORMAT_AYUV:
+		case NV_ENC_BUFFER_FORMAT_ABGR:
+		case NV_ENC_BUFFER_FORMAT_ABGR10:
+			return width * 4;
+		
+		default:
+			checkf(false, TEXT("Invalid buffer format"));
+			return 0;
+	}
+}
+
 void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::InitFrameInputBuffer(const FTexture2DRHIRef& BackBuffer, FFrame& Frame)
 {
+	FMemory::Memzero(Frame.InputFrame);
+	
 	// Create resolved back buffer texture
 	{
 		// Make sure format used here is compatible with NV_ENC_BUFFER_FORMAT specified later in NV_ENC_REGISTER_RESOURCE bufferFormat
 		FRHIResourceCreateInfo CreateInfo;
-		Frame.ResolvedBackBuffer = RHICreateTexture2D(NvEncInitializeParams.encodeWidth, NvEncInitializeParams.encodeHeight, EPixelFormat::PF_A2B10G10R10, 1, 1, TexCreate_RenderTargetable, CreateInfo);
+		#if PLATFORM_WINDOWS
+		Frame.ResolvedBackBuffer = RHICreateTexture2D(
+											NvEncInitializeParams.encodeWidth, 
+											NvEncInitializeParams.encodeHeight, 
+											EPixelFormat::PF_R8G8B8A8, 1, 1, 
+											TexCreate_RenderTargetable, CreateInfo);
+		#else
+			Frame.ResolvedBackBuffer = RHICreateTexture2D( 
+											NvEncInitializeParams.encodeWidth, 
+											NvEncInitializeParams.encodeHeight, 
+											EPixelFormat::PF_R8G8B8A8, 1, 1, 
+											TexCreate_RenderTargetable, CreateInfo);
+			GLint swizzleMask[] = {GL_ALPHA, GL_BLUE, GL_GREEN, GL_RED};
+			glTexParameteriv(GetOpenGLTextureFromRHITexture(Frame.ResolvedBackBuffer)->Resource, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+		#endif
 	}
 
-	FMemory::Memzero(Frame.InputFrame);
 	// Register input back buffer
 	{
-		ID3D11Texture2D* ResolvedBackBufferDX11 = (ID3D11Texture2D*)(GetD3D11TextureFromRHITexture(Frame.ResolvedBackBuffer)->GetResource());
+		#if PLATFORM_WINDOWS
+			ID3D11Texture2D* ResolvedBackBuffer = (ID3D11Texture2D*)(GetD3D11TextureFromRHITexture(Frame.ResolvedBackBuffer)->GetResource());
+		#else
+			FOpenGLTexture2D* bb = (FOpenGLTexture2D*)GetOpenGLTextureFromRHITexture(Frame.ResolvedBackBuffer);
+			NV_ENC_INPUT_RESOURCE_OPENGL_TEX *ResolvedBackBuffer = new NV_ENC_INPUT_RESOURCE_OPENGL_TEX;
+			ResolvedBackBuffer->texture = bb->Resource;
+			ResolvedBackBuffer->target = bb->Target;	
+		#endif
+
 		EPixelFormat PixelFormat = Frame.ResolvedBackBuffer->GetFormat();
 
 		NV_ENC_REGISTER_RESOURCE RegisterResource;
 		FMemory::Memzero(RegisterResource);
 		RegisterResource.version = NV_ENC_REGISTER_RESOURCE_VER;
+
+		#if PLATFORM_WINDOWS
 		RegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
-		RegisterResource.resourceToRegister = (void*)ResolvedBackBufferDX11;
+		RegisterResource.bufferFormat = NV_ENC_BUFFER_FORMAT_ABGR;	// Make sure ResolvedBackBuffer is created with a compatible format
+		#else
+		RegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_OPENGL_TEX;
+		RegisterResource.pitch = GetWidthInBytes(NV_ENC_BUFFER_FORMAT_ABGR, NvEncInitializeParams.encodeWidth);
+		UE_LOG(PixelStreaming, Log, TEXT("Width: %d Pitch: %d"), NvEncInitializeParams.encodeWidth, RegisterResource.pitch);
+		RegisterResource.bufferFormat = NV_ENC_BUFFER_FORMAT_ABGR;	// Make sure ResolvedBackBuffer is created with a compatible format
+		#endif
+
+		RegisterResource.resourceToRegister = (void*)ResolvedBackBuffer;
 		RegisterResource.width = NvEncInitializeParams.encodeWidth;
 		RegisterResource.height = NvEncInitializeParams.encodeHeight;
-		RegisterResource.bufferFormat = NV_ENC_BUFFER_FORMAT_ABGR10;	// Make sure ResolvedBackBuffer is created with a compatible format
+
 		_NVENCSTATUS Result = NvEncodeAPI->nvEncRegisterResource(EncoderInterface, &RegisterResource);
+		UE_LOG(PixelStreaming, Log, TEXT("Register back buffer status: %d"), Result);
 		checkf(NV_RESULT(Result), TEXT("Failed to register input back buffer (status: %d)"), Result);
 
 		Frame.InputFrame.RegisteredResource = RegisterResource.registeredResource;
 		Frame.InputFrame.BufferFormat = RegisterResource.bufferFormat;
 	}
+
 	// Map input buffer resource
 	{
 		NV_ENC_MAP_INPUT_RESOURCE MapInputResource;
@@ -705,11 +822,13 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::Initializ
 			checkf(NV_RESULT(Result), TEXT("Failed to create NvEnc bitstream buffer (status: %d)"), Result);
 			Frame.OutputFrame.BitstreamBuffer = CreateBitstreamBuffer.bitstreamBuffer;
 		}
+		#if PLATFORM_WINDOWS
 		// Register event handles
 		if (NvEncInitializeParams.enableEncodeAsync)
 		{
 			RegisterAsyncEvent(&Frame.OutputFrame.EventHandle);
 		}
+		#endif
 	}
 }
 
@@ -738,12 +857,14 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::ReleaseRe
 		checkf(NV_RESULT(Result), TEXT("Failed to destroy output buffer bitstream (status: %d)"), Result);
 		Frame.OutputFrame.BitstreamBuffer = nullptr;
 
+		#if PLATFORM_WINDOWS
 		if (Frame.OutputFrame.EventHandle)
 		{
 			UnregisterAsyncEvent(Frame.OutputFrame.EventHandle);
 			CLOSE_EVENT_HANDLE(Frame.OutputFrame.EventHandle);
 			Frame.OutputFrame.EventHandle = nullptr;
 		}
+		#endif
 	}
 }
 
@@ -752,9 +873,9 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::RegisterA
 	NV_ENC_EVENT_PARAMS EventParams;
 	FMemory::Memzero(EventParams);
 	EventParams.version = NV_ENC_EVENT_PARAMS_VER;
-#if defined PLATFORM_WINDOWS
+	#if PLATFORM_WINDOWS
 	EventParams.completionEvent = CreateEvent(nullptr, false, false, nullptr);
-#endif
+	#endif
 	_NVENCSTATUS Result = NvEncodeAPI->nvEncRegisterAsyncEvent(EncoderInterface, &EventParams);
 	checkf(NV_RESULT(Result), TEXT("Failed to register async event (status: %d)"), Result);
 	*OutEvent = EventParams.completionEvent;
@@ -772,7 +893,6 @@ void FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::Unregiste
 		checkf(NV_RESULT(Result), TEXT("Failed to unregister async event (status: %d)"), Result);
 	}
 }
-
 
 bool FPixelStreamingNvVideoEncoder::CheckPlatformCompatibility()
 {
@@ -801,11 +921,15 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoder(const FVideoEncoder
 	: NvVideoEncoderImpl(nullptr), DllHandle(nullptr)
 {
 	DllHandle = FPlatformProcess::GetDllHandle(GetDllName());
-	checkf(DllHandle != nullptr, TEXT("Failed to load NvEncode dll"));
+	checkf(DllHandle != nullptr, TEXT("Failed to load NvEncode dynamic library"));
 
 	if (DllHandle)
 	{
-		NvVideoEncoderImpl = new FPixelStreamingNvVideoEncoderImpl(DllHandle, Settings, BackBuffer, true, InEncodedFrameReadyCallback);
+		#if PLATFORM_WINDOWS
+			NvVideoEncoderImpl = new FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl(DllHandle, Settings, BackBuffer, true, InEncodedFrameReadyCallback);
+		#else
+			NvVideoEncoderImpl = new FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl(DllHandle, Settings, BackBuffer, false, InEncodedFrameReadyCallback);
+		#endif
 	}
 }
 
@@ -815,11 +939,11 @@ FPixelStreamingNvVideoEncoder::~FPixelStreamingNvVideoEncoder()
 	{
 		delete NvVideoEncoderImpl;
 
-#if defined PLATFORM_WINDOWS
+	#if PLATFORM_WINDOWS
 		FPlatformProcess::FreeDllHandle(DllHandle);
-#else
+	#else
 		dlclose(DllHandle);
-#endif
+	#endif
 		DllHandle = nullptr;
 	}
 }
@@ -851,15 +975,15 @@ void FPixelStreamingNvVideoEncoder::ForceIdrFrame()
 
 const TCHAR* FPixelStreamingNvVideoEncoder::GetDllName()
 {
-#if defined PLATFORM_WINDOWS
-#if defined _WIN64
-	return TEXT("nvEncodeAPI64.dll");
-#else
-	return TEXT("nvEncodeAPI.dll");
-#endif
-#elif defined PLATFORM_LINUX
-	return TEXT("libnvidia-encode.so.1");
-#else
-	return TEXT("");
-#endif
+	#if PLATFORM_WINDOWS
+	#if defined _WIN64
+		return TEXT("nvEncodeAPI64.dll");
+	#else
+		return TEXT("nvEncodeAPI.dll");
+	#endif
+	#elif PLATFORM_LINUX
+		return TEXT("libnvidia-encode.so.1");
+	#else
+		return TEXT("");
+	#endif
 }

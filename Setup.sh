@@ -49,4 +49,20 @@ else
 	pushd Engine/Build/BatchFiles/Linux > /dev/null
 	./Setup.sh "$@"
 	popd > /dev/null
+	
+	# Verify that either curl or wget are available
+	if which curl 1>/dev/null; then
+		DOWNLOAD_COMMAND="curl -L -o"
+	elif which wget 1>/dev/null; then
+		DOWNLOAD_COMMAND="wget -O"
+	else 
+		echo "Please install curl or wget"
+		exit 1
+	fi
+	
+	# Download and extract our custom-built libWebRTC binaries
+	TEMPFILE='/tmp/webrtc.tar.gz'
+	WEBRTC_DIR='Engine/Source/ThirdParty/WebRTC/sdk_trunk_linux'
+	WEBRTC_URL='https://github.com/adamrehn/pixel-streaming-linux/releases/download/binaries/webrtc-4.23.tar.gz'
+	rm -R -f "$WEBRTC_DIR" && mkdir -p "$WEBRTC_DIR" && $DOWNLOAD_COMMAND "$TEMPFILE" "$WEBRTC_URL" && tar -xvf "$TEMPFILE" -C "$WEBRTC_DIR" && rm "$TEMPFILE"
 fi

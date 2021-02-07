@@ -6,124 +6,141 @@ using Tools.DotNETCommon;
 
 namespace UnrealBuildTool.Rules
 {
-    public class PixelStreaming : ModuleRules
-    {
-        private void AddWebRTCProxy()
-        {
-            string PixelStreamingProgramsDirectory = "./Programs/PixelStreaming";
-            string WebRTCProxyDir = PixelStreamingProgramsDirectory + "/WebRTCProxy/bin";
-
-            if (!Directory.Exists(WebRTCProxyDir))
-            {
-                Log.TraceInformation(string.Format("WebRTC Proxy path '{0}' does not exist", WebRTCProxyDir));
-                return;
-            }
-
-            List<string> DependenciesToAdd = new List<string>();
-            DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "WebRTCProxy.exe"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "WebRTCProxy.pdb"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "*.bat"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "*.ps1"));
-            
-            foreach(string Dependency in DependenciesToAdd)
-            {
-                RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
-            }
-        }
-
-        private void AddSignallingServer()
-        {
-            string PixelStreamingProgramsDirectory = "./Programs/PixelStreaming";
-            string SignallingServerDir = new DirectoryInfo(PixelStreamingProgramsDirectory + "/WebServers/SignallingWebServer").FullName;
-
-            if (!Directory.Exists(SignallingServerDir))
-            {
-                Log.TraceInformation(string.Format("Signalling Server path '{0}' does not exist", SignallingServerDir));
-                return;
-            }
-
-            List<string> DependenciesToAdd = new List<string>();
-            DependenciesToAdd.AddRange(Directory.GetFiles(SignallingServerDir, "*.*", SearchOption.AllDirectories));
-
-            string NodeModulesDirPath = new DirectoryInfo(SignallingServerDir + "/node_modules").FullName;
-            string LogsDirPath = new DirectoryInfo(SignallingServerDir + "/logs").FullName;
-            foreach (string Dependency in DependenciesToAdd)
-            {
-                if (!Dependency.StartsWith(NodeModulesDirPath) &&
-                    !Dependency.StartsWith(LogsDirPath))
-                {
-                    RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
-                }
-            }
-        }
-
-        private void AddMatchmakingServer()
-        {
+	public class PixelStreaming : ModuleRules
+	{
+		private void AddWebRTCProxy(UnrealTargetPlatform platform)
+		{
 			string PixelStreamingProgramsDirectory = "./Programs/PixelStreaming";
-            string MatchmakingServerDir = new DirectoryInfo(PixelStreamingProgramsDirectory + "/WebServers/Matchmaker").FullName;
+			string WebRTCProxyDir = PixelStreamingProgramsDirectory + "/WebRTCProxy/bin";
+			
+			if (!Directory.Exists(WebRTCProxyDir))
+			{
+				Log.TraceInformation(string.Format("WebRTC Proxy path '{0}' does not exist", WebRTCProxyDir));
+				return;
+			}
+			
+			List<string> DependenciesToAdd = new List<string>();
+			
+			if (platform == UnrealTargetPlatform.Win32 || platform == UnrealTargetPlatform.Win64)
+			{
+				DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "WebRTCProxy.exe"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "WebRTCProxy.pdb"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "*.bat"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "*.ps1"));
+			}
+			else if (platform == UnrealTargetPlatform.Linux) {
+				DependenciesToAdd.AddRange(Directory.GetFiles(WebRTCProxyDir, "WebRTCProxy"));
+			}
+			
+			foreach(string Dependency in DependenciesToAdd)
+			{
+				RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
+			}
+		}
 
-            if (!Directory.Exists(MatchmakingServerDir))
-            {
-                Log.TraceInformation(string.Format("Matchmaking Server path '{0}' does not exist", MatchmakingServerDir));
-                return;
-            }
+		private void AddSignallingServer()
+		{
+			string PixelStreamingProgramsDirectory = "./Programs/PixelStreaming";
+			string SignallingServerDir = new DirectoryInfo(PixelStreamingProgramsDirectory + "/WebServers/SignallingWebServer").FullName;
 
-            List<string> DependenciesToAdd = new List<string>();
-            DependenciesToAdd.AddRange(Directory.GetFiles(MatchmakingServerDir, "*.*", SearchOption.AllDirectories));
+			if (!Directory.Exists(SignallingServerDir))
+			{
+				Log.TraceInformation(string.Format("Signalling Server path '{0}' does not exist", SignallingServerDir));
+				return;
+			}
 
-            string NodeModulesDirPath = new DirectoryInfo(MatchmakingServerDir + "/node_modules").FullName;
-            string LogsDirPath = new DirectoryInfo(MatchmakingServerDir + "/logs").FullName;
-            foreach (string Dependency in DependenciesToAdd)
-            {
-                if (!Dependency.StartsWith(NodeModulesDirPath) &&
-                    !Dependency.StartsWith(LogsDirPath))
-                {
-                    RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
-                }
-            }
-        }
+			List<string> DependenciesToAdd = new List<string>();
+			DependenciesToAdd.AddRange(Directory.GetFiles(SignallingServerDir, "*.*", SearchOption.AllDirectories));
 
-		private void AddWebRTCServers()
-        {
-            string webRTCRevision = "23789";
-            string webRTCRevisionDirectory = "./ThirdParty/WebRTC/rev." + webRTCRevision;
-			string webRTCProgramsDirectory = System.IO.Path.Combine(webRTCRevisionDirectory, "programs/Win64/VS2017/release");
+			string NodeModulesDirPath = new DirectoryInfo(SignallingServerDir + "/node_modules").FullName;
+			string LogsDirPath = new DirectoryInfo(SignallingServerDir + "/logs").FullName;
+			foreach (string Dependency in DependenciesToAdd)
+			{
+				if (!Dependency.StartsWith(NodeModulesDirPath) &&
+					!Dependency.StartsWith(LogsDirPath))
+				{
+					RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
+				}
+			}
+		}
 
-            List<string> DependenciesToAdd = new List<string>();
-            DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.exe"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.pdb"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.bat"));
-            DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.ps1"));
+		private void AddMatchmakingServer()
+		{
+			string PixelStreamingProgramsDirectory = "./Programs/PixelStreaming";
+			string MatchmakingServerDir = new DirectoryInfo(PixelStreamingProgramsDirectory + "/WebServers/Matchmaker").FullName;
 
-            foreach (string Dependency in DependenciesToAdd)
-            {
-                RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
-            }
-        }
+			if (!Directory.Exists(MatchmakingServerDir))
+			{
+				Log.TraceInformation(string.Format("Matchmaking Server path '{0}' does not exist", MatchmakingServerDir));
+				return;
+			}
 
-        public PixelStreaming(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PublicIncludePaths.Add(ModuleDirectory);
-            PrivateIncludePaths.Add(ModuleDirectory);
+			List<string> DependenciesToAdd = new List<string>();
+			DependenciesToAdd.AddRange(Directory.GetFiles(MatchmakingServerDir, "*.*", SearchOption.AllDirectories));
+
+			string NodeModulesDirPath = new DirectoryInfo(MatchmakingServerDir + "/node_modules").FullName;
+			string LogsDirPath = new DirectoryInfo(MatchmakingServerDir + "/logs").FullName;
+			foreach (string Dependency in DependenciesToAdd)
+			{
+				if (!Dependency.StartsWith(NodeModulesDirPath) &&
+					!Dependency.StartsWith(LogsDirPath))
+				{
+					RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
+				}
+			}
+		}
+
+		private void AddWebRTCServers(UnrealTargetPlatform platform)
+		{
+			List<string> DependenciesToAdd = new List<string>();
+			if (platform == UnrealTargetPlatform.Win32 || platform == UnrealTargetPlatform.Win64)
+			{
+				string webRTCRevision = "23789";
+				string webRTCRevisionDirectory = "./ThirdParty/WebRTC/rev." + webRTCRevision;
+				string webRTCProgramsDirectory = System.IO.Path.Combine(webRTCRevisionDirectory, "programs/Win64/VS2017/release");
+				
+				DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.exe"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.pdb"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.bat"));
+				DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*.ps1"));
+			}
+			else if (platform == UnrealTargetPlatform.Linux)
+			{
+				string webRTCRevisionDirectory = "./ThirdParty/WebRTC/sdk_trunk_linux";
+				string webRTCProgramsDirectory = System.IO.Path.Combine(webRTCRevisionDirectory, "bin");
+				
+				DependenciesToAdd.AddRange(Directory.GetFiles(webRTCProgramsDirectory, "*"));
+			}
+			
+			foreach (string Dependency in DependenciesToAdd)
+			{
+				RuntimeDependencies.Add(Dependency, StagedFileType.NonUFS);
+			}
+		}
+
+		public PixelStreaming(ReadOnlyTargetRules Target) : base(Target)
+		{
+			PublicIncludePaths.Add(ModuleDirectory);
+			PrivateIncludePaths.Add(ModuleDirectory);
 			PrivateIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "../ThirdParty"));
 
 			// NOTE: General rule is not to access the private folder of another module,
 			// but to use the ISubmixBufferListener interface, we  need to include some private headers
-            PrivateIncludePaths.Add(System.IO.Path.Combine(Directory.GetCurrentDirectory(), "./Runtime/AudioMixer/Private"));
+			PrivateIncludePaths.Add(System.IO.Path.Combine(Directory.GetCurrentDirectory(), "./Runtime/AudioMixer/Private"));
 
-            PublicDependencyModuleNames.AddRange(
-                new string[]
-                {
+			PublicDependencyModuleNames.AddRange(
+				new string[]
+				{
 					"ApplicationCore",
 					"Core",
-                    "CoreUObject",
-                    "Engine",
+					"CoreUObject",
+					"Engine",
 					"InputCore",
-                    "InputDevice",
+					"InputDevice",
 					"Json",
 					"RenderCore",
-                    "AnimGraphRuntime",
-                    "RHI",
+					"AnimGraphRuntime",
+					"RHI",
 					"Slate",
 					"SlateCore",
 					"Sockets",
@@ -131,19 +148,19 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[]
-                {
-                    "Slate",
-                    "SlateCore",
-                    "AudioMixer",
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Slate",
+					"SlateCore",
+					"AudioMixer",
 					"Json"
-                }
+				}
 			);
 
-            if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
-            {
-                PrivateDependencyModuleNames.AddRange(new string[] { "D3D11RHI" });
+			if (Target.Platform == UnrealTargetPlatform.Win32 || Target.Platform == UnrealTargetPlatform.Win64)
+			{
+				PrivateDependencyModuleNames.AddRange(new string[] { "D3D11RHI" });
 				PrivateIncludePaths.AddRange(
 					new string[] {
 					"../../../../Source/Runtime/Windows/D3D11RHI/Private",
@@ -151,13 +168,24 @@ namespace UnrealBuildTool.Rules
 					});
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
+			} 
+			else if (Target.Platform == UnrealTargetPlatform.Linux)
+			{
+				PrivateDependencyModuleNames.AddRange(new string[] { "OpenGLDrv" });
+				PrivateIncludePaths.AddRange(
+					new string[] {
+						"../../../../Source/Runtime/OpenGLDrv/Private",
+					}
+				);
+				
+				string GLPath = Target.UEThirdPartySourceDirectory + "OpenGL";
+				PublicIncludePaths.Add(GLPath);
 			}
-
-			AddWebRTCProxy();
-            AddSignallingServer();
-            AddMatchmakingServer();
-            AddWebRTCServers();
-
-        }
-    }
+			
+			AddWebRTCProxy(Target.Platform);
+			AddSignallingServer();
+			AddMatchmakingServer();
+			AddWebRTCServers(Target.Platform);
+		}
+	}
 }

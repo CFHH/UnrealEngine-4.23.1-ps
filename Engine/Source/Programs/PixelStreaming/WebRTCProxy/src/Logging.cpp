@@ -3,6 +3,7 @@
 #include "Logging.h"
 #include "StringUtils.h"
 #include "TimeUtils.h"
+#include <iostream>
 
 EG_DEFINE_LOG_CATEGORY(LogDefault)
 
@@ -90,12 +91,16 @@ void ILogOutput::LogToAll(
 	constexpr int BufSize = 1024*10;
 	char Buf[BufSize];
 	SNPrintf(Buf, BufSize, "%s%s\n", Prefix, Msg);
-
+	
+	#ifdef _WIN32
 	if (PARAM_DbgWindow_Proxy)
 	{
 		OutputDebugStringA(Buf);
 	}
-
+	#else
+	std::clog << Buf << std::endl;
+	#endif
+	
 	auto Data = GetSharedData();
 	auto Lk = std::unique_lock<std::mutex>(Data->Mtx);
 	for (ILogOutput* Out : Data->Outputs)

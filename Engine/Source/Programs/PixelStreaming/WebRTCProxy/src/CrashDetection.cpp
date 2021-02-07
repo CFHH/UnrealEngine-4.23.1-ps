@@ -96,7 +96,11 @@ void SetupCrashDetection()
 
 #elif EG_PLATFORM == EG_PLATFORM_LINUX
 	// #LINUX: See https://gist.github.com/jvranish/4441299 for some tips how to implement this in Linux
-	#error "Not implemented yet""
+	//#error "Not implemented yet""
+	void SetupCrashDetection()
+	{
+		//TODO
+	}
 #else
 	#error "Unknown Platform"
 #endif

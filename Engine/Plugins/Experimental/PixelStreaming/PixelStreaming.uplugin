@@ -20,7 +20,7 @@
       "Name" : "PixelStreaming",
       "Type" : "Runtime",
       "LoadingPhase" : "PostEngineInit",
-      "WhitelistPlatforms" : [ "Win64" ]
+      "WhitelistPlatforms" : [ "Win64", "Linux" ]
     }
 	]
 }

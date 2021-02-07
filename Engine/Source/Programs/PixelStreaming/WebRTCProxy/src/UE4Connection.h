@@ -43,5 +43,5 @@ private:
 private:
 	IUE4ConnectionObserver& Observer;
 	FAsyncConnection Connection;
-	std::atomic<bool> bStreamingStarted = false;
+	std::atomic<bool> bStreamingStarted = {false};
 };

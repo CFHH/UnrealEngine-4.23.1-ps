@@ -19,10 +19,10 @@ struct FClientSession
 	FConductor& Outer;
 	FClientId ClientId;
 	bool bOriginalQualityController;
-	std::atomic<class FVideoEncoder*> VideoEncoder = nullptr;
+	std::atomic<class FVideoEncoder*> VideoEncoder = {nullptr};
 	rtc::scoped_refptr<webrtc::PeerConnectionInterface> PeerConnection;
 	rtc::scoped_refptr<webrtc::DataChannelInterface> DataChannel;
-	std::atomic<bool> bDisconnecting = false;
+	std::atomic<bool> bDisconnecting = {false};
 
 	//
 	// webrtc::PeerConnectionObserver implementation.

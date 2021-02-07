@@ -171,14 +171,14 @@ private:
 		return -1;
 	}
 
-	std::atomic<bool> bInitialized = false;
+	std::atomic<bool> bInitialized = {false};
 	std::unique_ptr<webrtc::AudioDeviceBuffer> DeviceBuffer;
 
 	std::vector<uint8_t> Tempbuf;
 	std::vector<uint8_t> RecordingBuffer;
 	int RecordingBufferSize = 0;
 
-	std::atomic<bool> bRecordingInitialized = false;
+	std::atomic<bool> bRecordingInitialized = {false};
 	int SampleRate = 48000;
 	int Channels = 2;
 };

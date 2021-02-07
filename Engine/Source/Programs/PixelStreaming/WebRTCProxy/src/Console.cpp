@@ -3,6 +3,8 @@
 #include "Console.h"
 #include "StringUtils.h"
 
+#ifdef _WIN32
+
 FConsole::FConsole()
 {
 }
@@ -119,3 +121,25 @@ void FConsole::SetTextColour(EColour Colour)
 	SetConsoleTextAttribute(hConsoleHandle, (WORD)Colour);
 	CurrColour = Colour;
 }
+
+#else
+
+FConsole::FConsole() {}
+
+FConsole::~FConsole() {}
+
+void FConsole::Init(short Width, short Height, short BufferWidth, short BufferHeight) {}
+
+void FConsole::Center() {}
+
+void FConsole::EnableUTF8Support() {}
+
+void FConsole::Print(const char* Str) {}
+
+void FConsole::Printf(const char* Fmt, ...) {}
+
+void FConsole::Log(const char* File, int Line, const FLogCategoryBase* Category, ELogVerbosity Verbosity, const char* Msg) {}
+
+void FConsole::SetTextColour(EColour Colour) {}
+
+#endif

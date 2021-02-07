@@ -3,7 +3,10 @@
 #pragma once
 
 #include "CoreTypes.h"
+
+#ifdef _WIN32
 #include "Windows/WindowsHWrapper.h"
+#endif
 
 // Directly use what is defined in UE4, to avoid duplication and bugs due
 // to enums mismatches

@@ -28,8 +28,8 @@ public class XMPP : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
-			TargetPlatformSupportsJingle = true;
-			TargetPlatformSupportsStrophe = true;
+			TargetPlatformSupportsJingle = false;
+			TargetPlatformSupportsStrophe = false;
 		}
 		else if (Target.Platform == UnrealTargetPlatform.PS4 ||
 			Target.Platform == UnrealTargetPlatform.Mac)

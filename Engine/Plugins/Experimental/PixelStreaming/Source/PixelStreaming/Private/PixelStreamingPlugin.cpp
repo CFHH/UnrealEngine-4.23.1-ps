@@ -8,7 +8,6 @@
 #include "Engine/GameViewportClient.h"
 #include "Slate/SceneViewport.h"
 #include "Streamer.h"
-#include "Windows/WindowsHWrapper.h"
 #include "RenderingThread.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -22,6 +21,10 @@
 #include "Dom/JsonObject.h"
 #include "Misc/App.h"
 #include "Misc/MessageDialog.h"
+
+#if PLATFORM_WINDOWS
+	#include "Windows/WindowsHWrapper.h"
+#endif
 
 DEFINE_LOG_CATEGORY(PixelStreaming);
 DEFINE_LOG_CATEGORY(PixelStreamingInput);
@@ -47,9 +50,9 @@ void FPixelStreamingPlugin::StartupModule()
 	if (Device)
 	{
 		FString RHIName = GDynamicRHI->GetName();
-		if (RHIName != TEXT("D3D11"))
+		if (RHIName != TEXT("D3D11") && RHIName != TEXT("OpenGL"))
 		{
-			UE_LOG(PixelStreaming, Error, TEXT("Failed to initialise Pixel Streaming plugin because it only supports DX11"));
+			UE_LOG(PixelStreaming, Error, TEXT("Failed to initialise Pixel Streaming plugin because it only supports DX11 or OpenGL (Linux Only) RHI found was %s"), *RHIName);
 			return;
 		}
 	}
@@ -88,6 +91,7 @@ bool FPixelStreamingPlugin::CheckPlatformCompatibility() const
 {
 	bool bCompatible = true;
 
+	#if PLATFORM_WINDOWS
 	bool bWin8OrHigher = FWindowsPlatformMisc::VerifyWindowsVersion(6, 2);
 	if (!bWin8OrHigher)
 	{
@@ -98,6 +102,7 @@ bool FPixelStreamingPlugin::CheckPlatformCompatibility() const
 		UE_LOG(PixelStreaming, Error, TEXT("%s"), *ErrorString);
 		bCompatible = false;
 	}
+	#endif
 
 	if (!FStreamer::CheckPlatformCompatibility())
 	{

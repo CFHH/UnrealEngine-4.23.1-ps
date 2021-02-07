@@ -52,8 +52,8 @@ private:
 	bool bStartedFromSPS = false;
 	size_t FrameNo = 0;
 
-	std::atomic<bool> bOwnsQualityControl = false;
-	std::atomic<bool> bForceBitrateRequest = false;
+	std::atomic<bool> bOwnsQualityControl = {false};
+	std::atomic<bool> bForceBitrateRequest = {false};
 	webrtc::BitrateAllocation LastBitrate;
 	uint32_t LastFramerate = 0;
 };

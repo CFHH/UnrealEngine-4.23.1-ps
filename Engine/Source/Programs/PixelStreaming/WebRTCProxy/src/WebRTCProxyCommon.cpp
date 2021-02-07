@@ -30,7 +30,11 @@ std::string GetProcessPath(std::string* Filename)
 	return Res;
 }
 #elif EG_PLATFORM == EG_PLATFORM_LINUX
-#error Not implemented yet
+//#error Not implemented yet
+std::string GetProcessPath(std::string* Filename)
+{
+	return *Filename;
+}
 #else
 #error Unknown platform
 #endif

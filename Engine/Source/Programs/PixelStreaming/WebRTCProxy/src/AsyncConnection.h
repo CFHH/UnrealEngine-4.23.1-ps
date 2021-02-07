@@ -44,8 +44,8 @@ private:
 	rtc::SocketAddress SocketAddress;
 	std::unique_ptr<rtc::AsyncSocket> Socket;
 
-	std::atomic<bool> bReconnect = false; // automatically try to reconnect on disconnection
-	std::atomic<bool> bReportDisconnection = false;  // to avoid reporting disconnection on repeated connection attempts
+	std::atomic<bool> bReconnect = {false}; // automatically try to reconnect on disconnection
+	std::atomic<bool> bReportDisconnection = {false};  // to avoid reporting disconnection on repeated connection attempts
 
 	uint8_t TmpReadBuffer[0xFFFF];
 	std::vector<uint8_t> ReadBuffer;

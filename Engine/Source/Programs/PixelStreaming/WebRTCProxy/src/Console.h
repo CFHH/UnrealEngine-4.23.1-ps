@@ -79,8 +79,11 @@ public:
 
 private:
 	void SetTextColour(EColour Colour);
+	
+	#ifdef _WIN32
 	HANDLE hConsoleHandle = INVALID_HANDLE_VALUE;
-
+	#endif
+	
 	// Each process can have only 1 console.
 	// This tells if the console was created by this class, and if so, it will
 	// be deleted when the object is destroyed

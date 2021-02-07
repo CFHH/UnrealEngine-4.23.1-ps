@@ -8,7 +8,7 @@ void VSNPrintf(char* OutBuffer, int BufSize, const char* Fmt, va_list Args)
 #if EG_PLATFORM == EG_PLATFORM_WINDOWS
 	res = _vsnprintf_s(OutBuffer, BufSize, _TRUNCATE, Fmt, Args);
 #elif EG_PLATFORM == EG_PLATFORM_LINUX
-	res = vsnprintf(OutBuffer, BufSize, fmt, Args);
+	res = vsnprintf(OutBuffer, BufSize, Fmt, Args);
 #else
 #error Unknown platform
 #endif

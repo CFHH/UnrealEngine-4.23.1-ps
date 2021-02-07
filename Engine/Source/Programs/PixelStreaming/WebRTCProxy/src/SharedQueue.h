@@ -24,7 +24,7 @@ public:
 		DataCondVar.notify_one();
 	}
 
-	template <typename T>
+	//template <typename T>
 	void Push(T&& Item)
 	{
 		std::lock_guard<std::mutex> Lk(Mtx);

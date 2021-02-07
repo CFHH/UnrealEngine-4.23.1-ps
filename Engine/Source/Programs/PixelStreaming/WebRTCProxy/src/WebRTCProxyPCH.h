@@ -4,11 +4,16 @@
 #include "targetver.h"
 
 #include <stdio.h>
+
+#ifdef _WIN32
 #include <tchar.h>
+#endif
+
 #include <algorithm>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <thread>
 #include <fstream>
 #include <iostream>
 #include <locale>
@@ -17,7 +22,9 @@
 
 //#include "crazygaze/spas/spas.h"
 
+#ifdef _WIN32
 #include "Windows/AllowWindowsPlatformAtomics.h"
+#endif
 
 #if EG_PLATFORM == EG_PLATFORM_WINDOWS
 #pragma warning(push)
@@ -60,9 +67,11 @@
 #include "rtc_base/sigslot.h"
 #include "rtc_base/atomicops.h"
 
+#ifdef _WIN32
 // #REFACTOR : Possibly remove this one once we make use of cross-platform sockets
 #include "rtc_base/win32.h"
 #include "rtc_base/win32socketserver.h"
+#endif
 
 #include "rtc_base/asynctcpsocket.h"
 
@@ -90,4 +99,6 @@
 #pragma warning(pop)
 #endif
 
+#ifdef _WIN32
 #include "Windows/HideWindowsPlatformAtomics.h"
+#endif

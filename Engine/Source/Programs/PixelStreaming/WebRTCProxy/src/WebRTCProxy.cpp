@@ -159,9 +159,11 @@ bool ParseParameters(int argc, char* argv[])
 	return true;
 }
 
+
 // This is used by the Control handler (set with ConsoleCtrlHandler function)
 // to wait for the main thread to finish
-std::atomic<bool> bFinished = false;
+std::atomic<bool> bFinished = {false};
+#ifdef _WIN32
 DWORD MainThreadId = 0;
 
 // Handler function will be called on separate thread!
@@ -201,14 +203,18 @@ static BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType)
 	return Windows::FALSE;
 }
 
+#endif
+
 int mainImpl(int argc, char* argv[])
 {
 	FConsole Console;
 	Console.Init(120, 40, 400, 2000);
-
+	
+	#ifdef _WIN32
 	MainThreadId = GetCurrentThreadId();
 	SetConsoleCtrlHandler(ConsoleCtrlHandler, Windows::TRUE);
-
+	#endif
+	
 	// NOTE: Parsing the parameters before creating the file logger, so the log
 	// filename takes into account the -LocalTime parameter (if specified)
 	if (!ParseParameters(argc, argv))
@@ -258,14 +264,18 @@ int mainImpl(int argc, char* argv[])
 	rtc::Win32Thread w32_thread(&w32_ss);
 	rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
 #elif EG_PLATFORM_LINUX == EG_PLATFORM_LINUX
-#error Not yet implemented
+//#error Not yet implemented
+	rtc::PhysicalSocketServer ss;
+	rtc::Thread thread(&ss);
+	rtc::ThreadManager::Instance()->SetCurrentThread(&thread);
 #else
 #error Unknown platform
 #endif
 
 	rtc::InitializeSSL();
 	auto Conductor = std::make_unique<FConductor>();
-
+	
+	#ifdef _WIN32
 	// Main loop.
 	MSG Msg;
 	BOOL Gm;
@@ -274,7 +284,10 @@ int mainImpl(int argc, char* argv[])
 		::TranslateMessage(&Msg);
 		::DispatchMessage(&Msg);
 	}
-
+	#else
+	thread.Run();
+	#endif
+	
 	rtc::CleanupSSL();
 
 	EG_LOG(LogDefault, Log, "Exiting UE4WebRTCProxy");

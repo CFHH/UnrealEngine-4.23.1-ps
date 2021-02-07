@@ -1,7 +1,7 @@
 /*
  * This copyright notice applies to this header file only:
  *
- * Copyright (c) 2010-2015 NVIDIA Corporation
+ * Copyright (c) 2010-2019 NVIDIA Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,8 +27,10 @@
 
 /**
  * \file nvEncodeAPI.h
- *   NvEncodeAPI provides a NVENC Video Encoding interface to NVIDIA GPU devices based on the Kepler architecture.
- * \date 2011-2016
+ *   NVIDIA GPUs - beginning with the Kepler generation - contain a hardware-based encoder
+ *   (referred to as NVENC) which provides fully-accelerated hardware-based video encoding.
+ *   NvEncodeAPI provides the interface for NVIDIA video encoder (NVENC).
+ * \date 2011-2019
  *  This file contains the interface constants, structure definitions and function prototypes.
  */
 
@@ -106,9 +108,10 @@ typedef struct _NVENC_RECT
 typedef void* NV_ENC_INPUT_PTR;             /**< NVENCODE API input buffer                              */
 typedef void* NV_ENC_OUTPUT_PTR;            /**< NVENCODE API output buffer*/
 typedef void* NV_ENC_REGISTERED_PTR;        /**< A Resource that has been registered with NVENCODE API*/
+typedef void* NV_ENC_CUSTREAM_PTR;          /**< Pointer to CUstream*/
 
-#define NVENCAPI_MAJOR_VERSION 7
-#define NVENCAPI_MINOR_VERSION 0
+#define NVENCAPI_MAJOR_VERSION 9
+#define NVENCAPI_MINOR_VERSION 1
 
 #define NVENCAPI_VERSION (NVENCAPI_MAJOR_VERSION | (NVENCAPI_MINOR_VERSION << 24))
 
@@ -251,13 +254,40 @@ typedef enum _NV_ENC_PARAMS_RC_MODE
     NV_ENC_PARAMS_RC_CONSTQP                = 0x0,       /**< Constant QP mode */
     NV_ENC_PARAMS_RC_VBR                    = 0x1,       /**< Variable bitrate mode */
     NV_ENC_PARAMS_RC_CBR                    = 0x2,       /**< Constant bitrate mode */
-    NV_ENC_PARAMS_RC_VBR_MINQP              = 0x4,       /**< Variable bitrate mode with MinQP */
-    NV_ENC_PARAMS_RC_2_PASS_QUALITY         = 0x8,       /**< Multi pass encoding optimized for image quality and works only with low latency mode */
-    NV_ENC_PARAMS_RC_2_PASS_FRAMESIZE_CAP   = 0x10,      /**< Multi pass encoding optimized for maintaining frame size and works only with low latency mode */
-    NV_ENC_PARAMS_RC_2_PASS_VBR             = 0x20       /**< Multi pass VBR */
+    NV_ENC_PARAMS_RC_CBR_LOWDELAY_HQ        = 0x8,       /**< low-delay CBR, high quality */
+    NV_ENC_PARAMS_RC_CBR_HQ                 = 0x10,      /**< CBR, high quality (slower) */
+    NV_ENC_PARAMS_RC_VBR_HQ                 = 0x20       /**< VBR, high quality (slower) */
 } NV_ENC_PARAMS_RC_MODE;
 
-#define NV_ENC_PARAMS_RC_CBR2   NV_ENC_PARAMS_RC_CBR    /**< Deprecated */
+/**
+ * Emphasis Levels
+ */
+typedef enum _NV_ENC_EMPHASIS_MAP_LEVEL
+{
+    NV_ENC_EMPHASIS_MAP_LEVEL_0               = 0x0,       /**< Emphasis Map Level 0, for zero Delta QP value */
+    NV_ENC_EMPHASIS_MAP_LEVEL_1               = 0x1,       /**< Emphasis Map Level 1, for very low Delta QP value */
+    NV_ENC_EMPHASIS_MAP_LEVEL_2               = 0x2,       /**< Emphasis Map Level 2, for low Delta QP value */
+    NV_ENC_EMPHASIS_MAP_LEVEL_3               = 0x3,       /**< Emphasis Map Level 3, for medium Delta QP value */
+    NV_ENC_EMPHASIS_MAP_LEVEL_4               = 0x4,       /**< Emphasis Map Level 4, for high Delta QP value */
+    NV_ENC_EMPHASIS_MAP_LEVEL_5               = 0x5        /**< Emphasis Map Level 5, for very high Delta QP value */
+} NV_ENC_EMPHASIS_MAP_LEVEL;
+
+/**
+ * QP MAP MODE
+ */
+typedef enum _NV_ENC_QP_MAP_MODE
+{
+    NV_ENC_QP_MAP_DISABLED               = 0x0,             /**< Value in NV_ENC_PIC_PARAMS::qpDeltaMap have no effect. */
+    NV_ENC_QP_MAP_EMPHASIS               = 0x1,             /**< Value in NV_ENC_PIC_PARAMS::qpDeltaMap will be treated as Empasis level. Currently this is only supported for H264 */
+    NV_ENC_QP_MAP_DELTA                  = 0x2,             /**< Value in NV_ENC_PIC_PARAMS::qpDeltaMap will be treated as QP delta map. */
+    NV_ENC_QP_MAP                        = 0x3,             /**< Currently This is not supported. Value in NV_ENC_PIC_PARAMS::qpDeltaMap will be treated as QP value.   */
+} NV_ENC_QP_MAP_MODE;
+
+#define NV_ENC_PARAMS_RC_VBR_MINQP              (NV_ENC_PARAMS_RC_MODE)0x4          /**< Deprecated */
+#define NV_ENC_PARAMS_RC_2_PASS_QUALITY         NV_ENC_PARAMS_RC_CBR_LOWDELAY_HQ    /**< Deprecated */
+#define NV_ENC_PARAMS_RC_2_PASS_FRAMESIZE_CAP   NV_ENC_PARAMS_RC_CBR_HQ             /**< Deprecated */
+#define NV_ENC_PARAMS_RC_2_PASS_VBR             NV_ENC_PARAMS_RC_VBR_HQ             /**< Deprecated */
+#define NV_ENC_PARAMS_RC_CBR2                   NV_ENC_PARAMS_RC_CBR                /**< Deprecated */
 
 /**
  * Input picture structure
@@ -281,6 +311,7 @@ typedef enum _NV_ENC_PIC_TYPE
     NV_ENC_PIC_TYPE_BI              = 0x04,    /**< Bi-directionally predicted with only Intra MBs */
     NV_ENC_PIC_TYPE_SKIPPED         = 0x05,    /**< Picture is skipped */
     NV_ENC_PIC_TYPE_INTRA_REFRESH   = 0x06,    /**< First picture in intra refresh cycle */
+    NV_ENC_PIC_TYPE_NONREF_P        = 0x07,    /**< Non reference P picture */            
     NV_ENC_PIC_TYPE_UNKNOWN         = 0xFF     /**< Picture type unknown */
 } NV_ENC_PIC_TYPE;
 
@@ -309,11 +340,30 @@ typedef enum _NV_ENC_BUFFER_FORMAT
     NV_ENC_BUFFER_FORMAT_YUV444                          = 0x00001000,  /**< Planar YUV [Y plane followed by U and V planes] */
     NV_ENC_BUFFER_FORMAT_YUV420_10BIT                    = 0x00010000,  /**< 10 bit Semi-Planar YUV [Y plane followed by interleaved UV plane]. Each pixel of size 2 bytes. Most Significant 10 bits contain pixel data. */
     NV_ENC_BUFFER_FORMAT_YUV444_10BIT                    = 0x00100000,  /**< 10 bit Planar YUV444 [Y plane followed by U and V planes]. Each pixel of size 2 bytes. Most Significant 10 bits contain pixel data.  */
-    NV_ENC_BUFFER_FORMAT_ARGB                            = 0x01000000,  /**< 8 bit Packed A8R8G8B8 */
-    NV_ENC_BUFFER_FORMAT_ARGB10                          = 0x02000000,  /**< 10 bit Packed A2R10G10B10. Each pixel of size 2 bytes. Most Significant 10 bits contain pixel data.  */
-    NV_ENC_BUFFER_FORMAT_AYUV                            = 0x04000000,  /**< 8 bit Packed A8Y8U8V8 */
-    NV_ENC_BUFFER_FORMAT_ABGR                            = 0x10000000,  /**< 8 bit Packed A8B8G8R8 */
-    NV_ENC_BUFFER_FORMAT_ABGR10                          = 0x20000000,  /**< 10 bit Packed A2B10G10R10. Each pixel of size 2 bytes. Most Significant 10 bits contain pixel data.  */
+    NV_ENC_BUFFER_FORMAT_ARGB                            = 0x01000000,  /**< 8 bit Packed A8R8G8B8. This is a word-ordered format
+                                                                             where a pixel is represented by a 32-bit word with B
+                                                                             in the lowest 8 bits, G in the next 8 bits, R in the
+                                                                             8 bits after that and A in the highest 8 bits. */
+    NV_ENC_BUFFER_FORMAT_ARGB10                          = 0x02000000,  /**< 10 bit Packed A2R10G10B10. This is a word-ordered format
+                                                                             where a pixel is represented by a 32-bit word with B
+                                                                             in the lowest 10 bits, G in the next 10 bits, R in the
+                                                                             10 bits after that and A in the highest 2 bits. */
+    NV_ENC_BUFFER_FORMAT_AYUV                            = 0x04000000,  /**< 8 bit Packed A8Y8U8V8. This is a word-ordered format
+                                                                             where a pixel is represented by a 32-bit word with V
+                                                                             in the lowest 8 bits, U in the next 8 bits, Y in the
+                                                                             8 bits after that and A in the highest 8 bits. */
+    NV_ENC_BUFFER_FORMAT_ABGR                            = 0x10000000,  /**< 8 bit Packed A8B8G8R8. This is a word-ordered format
+                                                                             where a pixel is represented by a 32-bit word with R
+                                                                             in the lowest 8 bits, G in the next 8 bits, B in the
+                                                                             8 bits after that and A in the highest 8 bits. */
+    NV_ENC_BUFFER_FORMAT_ABGR10                          = 0x20000000,  /**< 10 bit Packed A2B10G10R10. This is a word-ordered format
+                                                                             where a pixel is represented by a 32-bit word with R
+                                                                             in the lowest 10 bits, G in the next 10 bits, B in the
+                                                                             10 bits after that and A in the highest 2 bits. */
+    NV_ENC_BUFFER_FORMAT_U8                              = 0x40000000,  /**< Buffer format representing one-dimensional buffer. 
+                                                                             This format should be used only when registering the 
+                                                                             resource as output buffer, which will be used to write
+                                                                             the encoded bit stream or H.264 ME only mode output. */
 } NV_ENC_BUFFER_FORMAT;
 
 #define NV_ENC_BUFFER_FORMAT_NV12_PL NV_ENC_BUFFER_FORMAT_NV12
@@ -561,6 +611,15 @@ typedef enum _NV_ENC_MEMORY_HEAP
     NV_ENC_MEMORY_HEAP_SYSMEM_UNCACHED = 3  /**< Memory heap is in uncached system memory */
 } NV_ENC_MEMORY_HEAP;
 
+/**
+ * B-frame used as reference modes
+ */
+typedef enum _NV_ENC_BFRAME_REF_MODE
+{
+    NV_ENC_BFRAME_REF_MODE_DISABLED = 0x0,          /**< B frame is not used for reference */
+    NV_ENC_BFRAME_REF_MODE_EACH     = 0x1,          /**< Each B-frame will be used for reference. currently not supported for H.264 */
+    NV_ENC_BFRAME_REF_MODE_MIDDLE   = 0x2,          /**< Only(Number of B-frame)/2 th B-frame will be used for reference */
+} NV_ENC_BFRAME_REF_MODE;
 
 /**
  * H.264 entropy coding modes.
@@ -624,8 +683,22 @@ typedef enum _NV_ENC_INPUT_RESOURCE_TYPE
 {
     NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX          = 0x0,   /**< input resource type is a directx9 surface*/
     NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR    = 0x1,   /**< input resource type is a cuda device pointer surface*/
-    NV_ENC_INPUT_RESOURCE_TYPE_CUDAARRAY        = 0x2,   /**< input resource type is a cuda array surface */
+    NV_ENC_INPUT_RESOURCE_TYPE_CUDAARRAY        = 0x2,   /**< input resource type is a cuda array surface.
+                                                              This array must be a 2D array and the CUDA_ARRAY3D_SURFACE_LDST
+                                                              flag must have been specified when creating it. */
+    NV_ENC_INPUT_RESOURCE_TYPE_OPENGL_TEX       = 0x3    /**< input resource type is an OpenGL texture */
 } NV_ENC_INPUT_RESOURCE_TYPE;
+
+/**
+ *  Buffer usage
+ */
+typedef enum _NV_ENC_BUFFER_USAGE
+{
+    NV_ENC_INPUT_IMAGE              = 0x0,          /**< Registered surface will be used for input image */
+    NV_ENC_OUTPUT_MOTION_VECTOR     = 0x1,          /**< Registered surface will be used for output of H.264 ME only mode. 
+                                                         This buffer usage type is not supported for HEVC ME only mode. */
+    NV_ENC_OUTPUT_BITSTREAM         = 0x2           /**< Registered surface will be used for output bitstream in encoding */
+} NV_ENC_BUFFER_USAGE;
 
 /**
  *  Encoder Device type
@@ -634,7 +707,24 @@ typedef enum _NV_ENC_DEVICE_TYPE
 {
     NV_ENC_DEVICE_TYPE_DIRECTX          = 0x0,   /**< encode device type is a directx9 device */
     NV_ENC_DEVICE_TYPE_CUDA             = 0x1,   /**< encode device type is a cuda device */
+    NV_ENC_DEVICE_TYPE_OPENGL           = 0x2    /**< encode device type is an OpenGL device.
+                                                      Use of this device type is supported only on Linux */
 } NV_ENC_DEVICE_TYPE;
+
+/**
+ * Number of reference frames
+ */
+typedef enum _NV_ENC_NUM_REF_FRAMES
+{
+    NV_ENC_NUM_REF_FRAMES_AUTOSELECT       = 0x0,          /**< Number of reference frames is auto selected by the encoder driver */
+    NV_ENC_NUM_REF_FRAMES_1                = 0x1,          /**< Number of reference frames equal to 1 */
+    NV_ENC_NUM_REF_FRAMES_2                = 0x2,          /**< Number of reference frames equal to 2 */
+    NV_ENC_NUM_REF_FRAMES_3                = 0x3,          /**< Number of reference frames equal to 3 */
+    NV_ENC_NUM_REF_FRAMES_4                = 0x4,          /**< Number of reference frames equal to 4 */
+    NV_ENC_NUM_REF_FRAMES_5                = 0x5,          /**< Number of reference frames equal to 5 */
+    NV_ENC_NUM_REF_FRAMES_6                = 0x6,          /**< Number of reference frames equal to 6 */
+    NV_ENC_NUM_REF_FRAMES_7                = 0x7           /**< Number of reference frames equal to 7 */
+} NV_ENC_NUM_REF_FRAMES;
 
 /**
  * Encoder capabilities enumeration.
@@ -703,9 +793,11 @@ typedef enum _NV_ENC_CAPS
     NV_ENC_CAPS_SUPPORT_ADAPTIVE_TRANSFORM,
 
     /**
-     * Reserved enum field.
+     * Indicates HW support for Multi View Coding.
+     * \n 0 : Multi View Coding not supported.
+     * \n 1 : Multi View Coding supported.
      */
-    NV_ENC_CAPS_SUPPORT_RESERVED,
+    NV_ENC_CAPS_SUPPORT_STEREO_MVC,
 
     /**
      * Indicates HW support for encoding Temporal layers.
@@ -892,7 +984,8 @@ typedef enum _NV_ENC_CAPS
     /**
      * Indicates HW support for MEOnly Mode.
      * \n 0 : MEOnly Mode not supported.
-     * \n 1 : MEOnly Mode supported.
+     * \n 1 : MEOnly Mode supported for I and P frames.
+     * \n 2 : MEOnly Mode supported for I, P and B frames.
      */
     NV_ENC_CAPS_SUPPORT_MEONLY_MODE,
 
@@ -915,8 +1008,61 @@ typedef enum _NV_ENC_CAPS
      * \n 1 : 10 bit encoding supported.
      */
     NV_ENC_CAPS_SUPPORT_10BIT_ENCODE,
+    /**
+     * Maximum number of Long Term Reference frames supported
+     */
+    NV_ENC_CAPS_NUM_MAX_LTR_FRAMES,
 
     /**
+     * Indicates HW support for Weighted Predicition.
+     * \n 0 : Weighted Predicition not supported.
+     * \n 1 : Weighted Predicition supported.
+     */
+    NV_ENC_CAPS_SUPPORT_WEIGHTED_PREDICTION,
+
+
+    /**
+     * On managed (vGPU) platforms (Windows only), this API, in conjunction with other GRID Management APIs, can be used 
+     * to estimate the residual capacity of the hardware encoder on the GPU as a percentage of the total available encoder capacity. 
+     * This API can be called at any time; i.e. during the encode session or before opening the encode session. 
+     * If the available encoder capacity is returned as zero, applications may choose to switch to software encoding 
+     * and continue to call this API (e.g. polling once per second) until capacity becomes available.
+     *
+     * On baremetal (non-virtualized GPU) and linux platforms, this API always returns 100.
+     */
+    NV_ENC_CAPS_DYNAMIC_QUERY_ENCODER_CAPACITY,
+
+     /**
+     * Indicates B as refererence support.
+     * \n 0 : B as reference is not supported.
+     * \n 1 : each B-Frame as reference is supported.
+     * \n 2 : only Middle B-frame as reference is supported.
+     */
+    NV_ENC_CAPS_SUPPORT_BFRAME_REF_MODE,
+
+    /**
+     * Indicates HW support for Emphasis Level Map based delta QP computation.
+     * \n 0 : Emphasis Level Map based delta QP not supported.
+     * \n 1 : Emphasis Level Map based delta QP is supported.
+     */
+    NV_ENC_CAPS_SUPPORT_EMPHASIS_LEVEL_MAP,
+
+    /**
+     * Minimum input width supported.
+     */
+    NV_ENC_CAPS_WIDTH_MIN,
+
+    /**
+     * Minimum input height supported.
+     */
+    NV_ENC_CAPS_HEIGHT_MIN,
+
+    /**
+     * Indicates HW support for multiple reference frames.
+     */
+    NV_ENC_CAPS_SUPPORT_MULTIPLE_REF_FRAMES,
+
+     /**
      * Reserved - Not to be used by clients.
      */
     NV_ENC_CAPS_EXPOSED_COUNT
@@ -949,6 +1095,19 @@ typedef struct _NV_ENC_CAPS_PARAM
 
 
 /**
+ * Encoder Output parameters
+ */
+typedef struct _NV_ENC_ENCODE_OUT_PARAMS
+{
+    uint32_t                  version;                 /**< [out]: Struct version. */
+    uint32_t                  bitstreamSizeInBytes;    /**< [out]: Encoded bitstream size in bytes */
+    uint32_t                  reserved[62];            /**< [out]: Reserved and must be set to 0 */
+} NV_ENC_ENCODE_OUT_PARAMS;
+
+/** NV_ENC_ENCODE_OUT_PARAMS struct version. */
+#define NV_ENC_ENCODE_OUT_PARAMS_VER NVENCAPI_STRUCT_VERSION(1) 
+
+/**
  * Creation parameters for input buffer.
  */
 typedef struct _NV_ENC_CREATE_INPUT_BUFFER
@@ -956,7 +1115,7 @@ typedef struct _NV_ENC_CREATE_INPUT_BUFFER
     uint32_t                  version;                 /**< [in]: Struct version. Must be set to ::NV_ENC_CREATE_INPUT_BUFFER_VER */
     uint32_t                  width;                   /**< [in]: Input buffer width */
     uint32_t                  height;                  /**< [in]: Input buffer width */
-    NV_ENC_MEMORY_HEAP        memoryHeap;              /**< [in]: Deprecated. Will be removed in sdk 8.0 */
+    NV_ENC_MEMORY_HEAP        memoryHeap;              /**< [in]: Deprecated. Do not use */
     NV_ENC_BUFFER_FORMAT      bufferFmt;               /**< [in]: Input buffer format */
     uint32_t                  reserved;                /**< [in]: Reserved and must be set to 0 */
     NV_ENC_INPUT_PTR          inputBuffer;             /**< [out]: Pointer to input buffer */
@@ -974,8 +1133,8 @@ typedef struct _NV_ENC_CREATE_INPUT_BUFFER
 typedef struct _NV_ENC_CREATE_BITSTREAM_BUFFER
 {
     uint32_t              version;                     /**< [in]: Struct version. Must be set to ::NV_ENC_CREATE_BITSTREAM_BUFFER_VER */
-    uint32_t              size;                        /**< [in]: Size of the bitstream buffer to be created */
-    NV_ENC_MEMORY_HEAP    memoryHeap;                  /**< [in]: Deprecated. Will be removed in sdk 8.0 */
+    uint32_t              size;                        /**< [in]: Deprecated. Do not use */
+    NV_ENC_MEMORY_HEAP    memoryHeap;                  /**< [in]: Deprecated. Do not use */
     uint32_t              reserved;                    /**< [in]: Reserved and must be set to 0 */
     NV_ENC_OUTPUT_PTR     bitstreamBuffer;             /**< [out]: Pointer to the output bitstream buffer */
     void*                 bitstreamBufferPtr;          /**< [out]: Reserved and should not be used */
@@ -1013,7 +1172,7 @@ typedef struct _NV_ENC_H264_MV_DATA
 typedef struct _NV_ENC_HEVC_MV_DATA
 {
     NV_ENC_MVECTOR    mv[4];               /**< up to 4 vectors within a CU */
-    uint8_t           cuType;              /**< 0 (I), 1(P), 2 (Skip) */
+    uint8_t           cuType;              /**< 0 (I), 1(P) */
     uint8_t           cuSize;              /**< 0: 8x8, 1: 16x16, 2: 32x32, 3: 64x64 */
     uint8_t           partitionMode;       /**< The CU partition mode
                                                 0 (2Nx2N), 1 (2NxN), 2(Nx2N), 3 (NxN),
@@ -1040,9 +1199,9 @@ typedef struct _NV_ENC_CREATE_MV_BUFFER
  */
 typedef struct _NV_ENC_QP
 {
-    uint32_t        qpInterP;
-    uint32_t        qpInterB;
-    uint32_t        qpIntra;
+    uint32_t        qpInterP;     /**< [in]: Specifies QP value for P-frame. Even though this field is uint32_t for legacy reasons, the client should treat this as a signed parameter(int32_t) for cases in which negative QP values are to be specified. */
+    uint32_t        qpInterB;     /**< [in]: Specifies QP value for B-frame. Even though this field is uint32_t for legacy reasons, the client should treat this as a signed parameter(int32_t) for cases in which negative QP values are to be specified. */
+    uint32_t        qpIntra;      /**< [in]: Specifies QP value for Intra Frame. Even though this field is uint32_t for legacy reasons, the client should treat this as a signed parameter(int32_t) for cases in which negative QP values are to be specified. */
 } NV_ENC_QP;
 
 /**
@@ -1061,24 +1220,43 @@ typedef struct _NV_ENC_QP
     uint32_t                        enableMaxQP          :1;                     /**< [in]: Set this to 1 if maximum QP used for rate control. */
     uint32_t                        enableInitialRCQP    :1;                     /**< [in]: Set this to 1 if user suppplied initial QP is used for rate control. */
     uint32_t                        enableAQ             :1;                     /**< [in]: Set this to 1 to enable adaptive quantization (Spatial). */
-    uint32_t                        enableExtQPDeltaMap  :1;                     /**< [in]: Set this to 1 to enable additional QP modifier for each MB supplied by client though signed byte array pointed to by NV_ENC_PIC_PARAMS::qpDeltaMap (Not Supported when AQ(Spatial/Temporal) is enabled) */
+    uint32_t                        reservedBitField1    :1;                     /**< [in]: Reserved bitfields and must be set to 0. */
     uint32_t                        enableLookahead      :1;                     /**< [in]: Set this to 1 to enable lookahead with depth <lookaheadDepth> (if lookahead is enabled, input frames must remain available to the encoder until encode completion) */
     uint32_t                        disableIadapt        :1;                     /**< [in]: Set this to 1 to disable adaptive I-frame insertion at scene cuts (only has an effect when lookahead is enabled) */
     uint32_t                        disableBadapt        :1;                     /**< [in]: Set this to 1 to disable adaptive B-frame decision (only has an effect when lookahead is enabled) */
-    uint32_t                        enableTemporalAQ     :1;                     /**< [in]: Set this to 1 to enable temporal AQ for H.264 */
+    uint32_t                        enableTemporalAQ     :1;                     /**< [in]: Set this to 1 to enable temporal AQ */
     uint32_t                        zeroReorderDelay     :1;                     /**< [in]: Set this to 1 to indicate zero latency operation (no reordering delay, num_reorder_frames=0) */
     uint32_t                        enableNonRefP        :1;                     /**< [in]: Set this to 1 to enable automatic insertion of non-reference P-frames (no effect if enablePTD=0) */
     uint32_t                        strictGOPTarget      :1;                     /**< [in]: Set this to 1 to minimize GOP-to-GOP rate fluctuations */
-    uint32_t                        aqStrength           :4;                     /**< [in]: When AQ (Spatial) is enabled (i.e. NV_ENC_RC_PARAMS::enableAQ is set), this field is used to specify AQ strength. AQ strength scale is from 1 (low) - 15 (aggressive). If not set, strength is autoselected by driver. Currently supported only with h264 */
+    uint32_t                        aqStrength           :4;                     /**< [in]: When AQ (Spatial) is enabled (i.e. NV_ENC_RC_PARAMS::enableAQ is set), this field is used to specify AQ strength. AQ strength scale is from 1 (low) - 15 (aggressive). If not set, strength is autoselected by driver. */
     uint32_t                        reservedBitFields    :16;                    /**< [in]: Reserved bitfields and must be set to 0 */
     NV_ENC_QP                       minQP;                                       /**< [in]: Specifies the minimum QP used for rate control. Client must set NV_ENC_CONFIG::enableMinQP to 1. */
     NV_ENC_QP                       maxQP;                                       /**< [in]: Specifies the maximum QP used for rate control. Client must set NV_ENC_CONFIG::enableMaxQP to 1. */
     NV_ENC_QP                       initialRCQP;                                 /**< [in]: Specifies the initial QP used for rate control. Client must set NV_ENC_CONFIG::enableInitialRCQP to 1. */
     uint32_t                        temporallayerIdxMask;                        /**< [in]: Specifies the temporal layers (as a bitmask) whose QPs have changed. Valid max bitmask is [2^NV_ENC_CAPS_NUM_MAX_TEMPORAL_LAYERS - 1] */
     uint8_t                         temporalLayerQP[8];                          /**< [in]: Specifies the temporal layer QPs used for rate control. Temporal layer index is used as as the array index */
-    uint16_t                        targetQuality;                               /**< [in]: Target CQ (Constant Quality) level for VBR mode (range 0-51 with 0-automatic)  */
+    uint8_t                         targetQuality;                               /**< [in]: Target CQ (Constant Quality) level for VBR mode (range 0-51 with 0-automatic)  */
+    uint8_t                         targetQualityLSB;                            /**< [in]: Fractional part of target quality (as 8.8 fixed point format) */
     uint16_t                        lookaheadDepth;                              /**< [in]: Maximum depth of lookahead with range 0-32 (only used if enableLookahead=1) */
-    uint32_t                        reserved[9];
+    uint32_t                        reserved1;
+    NV_ENC_QP_MAP_MODE              qpMapMode;                                   /**< [in]: This flag is used to interpret values in array specified by NV_ENC_PIC_PARAMS::qpDeltaMap.
+                                                                                            Set this to NV_ENC_QP_MAP_EMPHASIS to treat values specified by NV_ENC_PIC_PARAMS::qpDeltaMap as Emphasis Level Map. 
+                                                                                            Emphasis Level can be assigned any value specified in enum NV_ENC_EMPHASIS_MAP_LEVEL. 
+                                                                                            Emphasis Level Map is used to specify regions to be encoded at varying levels of quality. 
+                                                                                            The hardware encoder adjusts the quantization within the image as per the provided emphasis map,
+                                                                                            by adjusting the quantization parameter (QP) assigned to each macroblock. This adjustment is commonly called “Delta QP”.
+                                                                                            The adjustment depends on the absolute QP decided by the rate control algorithm, and is applied after the rate control has decided each macroblock’s QP.
+                                                                                            Since the Delta QP overrides rate control, enabling Emphasis Level Map may violate bitrate and VBV buffer size constraints.
+                                                                                            Emphasis Level Map is useful in situations where client has a priori knowledge of the image complexity (e.g. via use of NVFBC's Classification feature) and encoding those high-complexity areas at higher quality (lower QP) is important, even at the possible cost of violating bitrate/VBV buffer size constraints
+                                                                                            This feature is not supported when AQ( Spatial/Temporal) is enabled.
+                                                                                            This feature is only supported for H264 codec currently.
+                                                                                            
+                                                                                            Set this to NV_ENC_QP_MAP_DELTA to treat values specified by NV_ENC_PIC_PARAMS::qpDeltaMap as QPDelta. This specifies QP modifier to be applied on top of the QP chosen by rate control 
+                                                                                            
+                                                                                            Set this to NV_ENC_QP_MAP_DISABLED to ignore NV_ENC_PIC_PARAMS::qpDeltaMap values. In this case, qpDeltaMap should be set to NULL.
+                                                                                             
+                                                                                            Other values are reserved for future use.*/
+    uint32_t                        reserved[7];
  } NV_ENC_RC_PARAMS;
  
 /** macro for constructing the version field of ::_NV_ENC_RC_PARAMS */
@@ -1113,13 +1291,14 @@ typedef NV_ENC_CONFIG_H264_VUI_PARAMETERS NV_ENC_CONFIG_HEVC_VUI_PARAMETERS;
 /**
  * \struct _NVENC_EXTERNAL_ME_HINT_COUNTS_PER_BLOCKTYPE
  * External motion vector hint counts per block type.
+ * H264 supports multiple hint while HEVC supports one hint for each valid candidate.
  */
 typedef struct _NVENC_EXTERNAL_ME_HINT_COUNTS_PER_BLOCKTYPE
 {
-    uint32_t   numCandsPerBlk16x16                   : 4;   /**< [in]: Specifies the number of candidates per 16x16 block. */
-    uint32_t   numCandsPerBlk16x8                    : 4;   /**< [in]: Specifies the number of candidates per 16x8 block. */
-    uint32_t   numCandsPerBlk8x16                    : 4;   /**< [in]: Specifies the number of candidates per 8x16 block. */
-    uint32_t   numCandsPerBlk8x8                     : 4;   /**< [in]: Specifies the number of candidates per 8x8 block. */
+    uint32_t   numCandsPerBlk16x16                   : 4;   /**< [in]: Supported for H264,HEVC.It Specifies the number of candidates per 16x16 block. */
+    uint32_t   numCandsPerBlk16x8                    : 4;   /**< [in]: Supported for H264 only.Specifies the number of candidates per 16x8 block. */
+    uint32_t   numCandsPerBlk8x16                    : 4;   /**< [in]: Supported for H264 only.Specifies the number of candidates per 8x16 block. */
+    uint32_t   numCandsPerBlk8x8                     : 4;   /**< [in]: Supported for H264,HEVC.Specifies the number of candidates per 8x8 block. */
     uint32_t   reserved                              : 16;  /**< [in]: Reserved for padding. */
     uint32_t   reserved1[3];                                /**< [in]: Reserved for future use. */
 } NVENC_EXTERNAL_ME_HINT_COUNTS_PER_BLOCKTYPE;
@@ -1147,7 +1326,7 @@ typedef struct _NVENC_EXTERNAL_ME_HINT
  */
 typedef struct _NV_ENC_CONFIG_H264
 {
-    uint32_t enableTemporalSVC         :1;                          /**< [in]: Set to 1 to enable SVC temporal*/
+    uint32_t reserved                  :1;                          /**< [in]: Reserved and must be set to 0 */
     uint32_t enableStereoMVC           :1;                          /**< [in]: Set to 1 to enable stereo MVC*/
     uint32_t hierarchicalPFrames       :1;                          /**< [in]: Set to 1 to enable hierarchical PFrames */
     uint32_t hierarchicalBFrames       :1;                          /**< [in]: Set to 1 to enable hierarchical BFrames */
@@ -1163,18 +1342,34 @@ typedef struct _NV_ENC_CONFIG_H264
                                                                                Check support for constrained encoding using ::NV_ENC_CAPS_SUPPORT_CONSTRAINED_ENCODING caps. */
     uint32_t repeatSPSPPS              :1;                          /**< [in]: Set to 1 to enable writing of Sequence and Picture parameter for every IDR frame */
     uint32_t enableVFR                 :1;                          /**< [in]: Set to 1 to enable variable frame rate. */
-    uint32_t enableLTR                 :1;                          /**< [in]: Currently this feature is not available and must be set to 0. Set to 1 to enable LTR support and auto-mark the first */
+    uint32_t enableLTR                 :1;                          /**< [in]: Set to 1 to enable LTR (Long Term Reference) frame support. LTR can be used in two modes: "LTR Trust" mode and "LTR Per Picture" mode.
+                                                                               LTR Trust mode: In this mode, ltrNumFrames pictures after IDR are automatically marked as LTR. This mode is enabled by setting ltrTrustMode = 1.
+                                                                                               Use of LTR Trust mode is strongly discouraged as this mode may be deprecated in future.
+                                                                               LTR Per Picture mode: In this mode, client can control whether the current picture should be marked as LTR. Enable this mode by setting
+                                                                                                     ltrTrustMode = 0 and ltrMarkFrame = 1 for the picture to be marked as LTR. This is the preferred mode
+                                                                                                     for using LTR.
+                                                                               Note that LTRs are not supported if encoding session is configured with B-frames */
     uint32_t qpPrimeYZeroTransformBypassFlag :1;                    /**< [in]: To enable lossless encode set this to 1, set QP to 0 and RC_mode to NV_ENC_PARAMS_RC_CONSTQP and profile to HIGH_444_PREDICTIVE_PROFILE.
                                                                                Check support for lossless encoding using ::NV_ENC_CAPS_SUPPORT_LOSSLESS_ENCODE caps.  */
     uint32_t useConstrainedIntraPred   :1;                          /**< [in]: Set 1 to enable constrained intra prediction. */
-    uint32_t reservedBitFields         :15;                         /**< [in]: Reserved bitfields and must be set to 0 */
+    uint32_t enableFillerDataInsertion :1;                          /**< [in]: Set to 1 to enable insertion of filler data in the bitstream.
+                                                                               This flag will take effect only when one of the CBR rate
+                                                                               control modes (NV_ENC_PARAMS_RC_CBR, NV_ENC_PARAMS_RC_CBR_HQ,
+                                                                               NV_ENC_PARAMS_RC_CBR_LOWDELAY_HQ) is in use and both
+                                                                               NV_ENC_INITIALIZE_PARAMS::frameRateNum and
+                                                                               NV_ENC_INITIALIZE_PARAMS::frameRateDen are set to non-zero
+                                                                               values. Setting this field when
+                                                                               NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is also set
+                                                                               is currently not supported and will make ::NvEncInitializeEncoder()
+                                                                               return an error. */
+    uint32_t reservedBitFields         :14;                         /**< [in]: Reserved bitfields and must be set to 0 */
     uint32_t level;                                                 /**< [in]: Specifies the encoding level. Client is recommended to set this to NV_ENC_LEVEL_AUTOSELECT in order to enable the NvEncodeAPI interface to select the correct level. */
     uint32_t idrPeriod;                                             /**< [in]: Specifies the IDR interval. If not set, this is made equal to gopLength in NV_ENC_CONFIG.Low latency application client can set IDR interval to NVENC_INFINITE_GOPLENGTH so that IDR frames are not inserted automatically. */
     uint32_t separateColourPlaneFlag;                               /**< [in]: Set to 1 to enable 4:4:4 separate colour planes */
     uint32_t disableDeblockingFilterIDC;                            /**< [in]: Specifies the deblocking filter mode. Permissible value range: [0,2] */
     uint32_t numTemporalLayers;                                     /**< [in]: Specifies max temporal layers to be used for hierarchical coding. Valid value range is [1,::NV_ENC_CAPS_NUM_MAX_TEMPORAL_LAYERS] */
-    uint32_t spsId;                                                 /**< [in]: Specifies the SPS id of the sequence header. Currently reserved and must be set to 0. */
-    uint32_t ppsId;                                                 /**< [in]: Specifies the PPS id of the picture header. Currently reserved and must be set to 0. */
+    uint32_t spsId;                                                 /**< [in]: Specifies the SPS id of the sequence header */
+    uint32_t ppsId;                                                 /**< [in]: Specifies the PPS id of the picture header */
     NV_ENC_H264_ADAPTIVE_TRANSFORM_MODE adaptiveTransformMode;      /**< [in]: Specifies the AdaptiveTransform Mode. Check support for AdaptiveTransform mode using ::NV_ENC_CAPS_SUPPORT_ADAPTIVE_TRANSFORM caps. */
     NV_ENC_H264_FMO_MODE                fmoMode;                    /**< [in]: Specified the FMO Mode. Check support for FMO using ::NV_ENC_CAPS_SUPPORT_FMO caps. */
     NV_ENC_H264_BDIRECT_MODE            bdirectMode;                /**< [in]: Specifies the BDirect mode. Check support for BDirect mode using ::NV_ENC_CAPS_SUPPORT_BDIRECT_MODE caps.*/
@@ -1188,7 +1383,7 @@ typedef struct _NV_ENC_CONFIG_H264
                                                                                is recommended to use a large DPB size so that the encoder can keep old reference frames which can be used if recent
                                                                                frames are invalidated. */
     uint32_t                            sliceMode;                  /**< [in]: This parameter in conjunction with sliceModeData specifies the way in which the picture is divided into slices
-                                                                               sliceMode = 0 MB based slices, sliceMode = 1 Byte based slices, sliceMode = 2 MB row based slices, sliceMode = 3, numSlices in Picture
+                                                                               sliceMode = 0 MB based slices, sliceMode = 1 Byte based slices, sliceMode = 2 MB row based slices, sliceMode = 3 numSlices in Picture.
                                                                                When forceIntraRefreshWithFrameCnt is set it will have priority over sliceMode setting
                                                                                When sliceMode == 0 and sliceModeData == 0 whole picture will be coded with one slice */
     uint32_t                            sliceModeData;              /**< [in]: Specifies the parameter needed for sliceMode. For:
@@ -1197,20 +1392,24 @@ typedef struct _NV_ENC_CONFIG_H264
                                                                                sliceMode = 2, sliceModeData specifies # of MB rows in each slice (except last slice)
                                                                                sliceMode = 3, sliceModeData specifies number of slices in the picture. Driver will divide picture into slices optimally */
     NV_ENC_CONFIG_H264_VUI_PARAMETERS   h264VUIParameters;          /**< [in]: Specifies the H264 video usability info pamameters */
-    uint32_t                            ltrNumFrames;               /**< [in]: Specifies the number of LTR frames used. 
-                                                                               If ltrTrustMode=1, encoder will mark first numLTRFrames base layer reference frames within each IDR interval as LTR.
-                                                                               If ltrMarkFrame=1, ltrNumFrames specifies maximum number of ltr frames in DPB.
-                                                                               If ltrNumFrames value is more that DPB size(maxNumRefFrames) encoder will take decision on its own. */
-    uint32_t                            ltrTrustMode;               /**< [in]: Specifies the LTR operating mode. 
-                                                                               Set to 0 to disallow encoding using LTR frames until later specified.
-                                                                               Set to 1 to allow encoding using LTR frames unless later invalidated.*/
+    uint32_t                            ltrNumFrames;               /**< [in]: Specifies the number of LTR frames. This parameter has different meaning in two LTR modes.
+                                                                               In "LTR Trust" mode (ltrTrustMode = 1), encoder will mark the first ltrNumFrames base layer reference frames within each IDR interval as LTR.
+                                                                               In "LTR Per Picture" mode (ltrTrustMode = 0 and ltrMarkFrame = 1), ltrNumFrames specifies maximum number of LTR frames in DPB. */
+    uint32_t                            ltrTrustMode;               /**< [in]: Specifies the LTR operating mode. See comments near NV_ENC_CONFIG_H264::enableLTR for description of the two modes.
+                                                                               Set to 1 to use "LTR Trust" mode of LTR operation. Clients are discouraged to use "LTR Trust" mode as this mode may 
+                                                                               be deprecated in future releases.
+                                                                               Set to 0 when using "LTR Per Picture" mode of LTR operation. */
     uint32_t                            chromaFormatIDC;            /**< [in]: Specifies the chroma format. Should be set to 1 for yuv420 input, 3 for yuv444 input.
                                                                                Check support for YUV444 encoding using ::NV_ENC_CAPS_SUPPORT_YUV444_ENCODE caps.*/
     uint32_t                            maxTemporalLayers;          /**< [in]: Specifies the max temporal layer used for hierarchical coding. */ 
-    uint32_t                            reserved1[270];             /**< [in]: Reserved and must be set to 0 */
+    NV_ENC_BFRAME_REF_MODE              useBFramesAsRef;            /**< [in]: Specifies the B-Frame as reference mode. Check support for useBFramesAsRef mode using ::NV_ENC_CAPS_SUPPORT_BFRAME_REF_MODE caps.*/
+    NV_ENC_NUM_REF_FRAMES               numRefL0;                   /**< [in]: Specifies max number of reference frames in reference picture list L0, that can be used by hardware for prediction of a frame. 
+                                                                               Check support for numRefL0 using ::NV_ENC_CAPS_SUPPORT_MULTIPLE_REF_FRAMES caps. */
+    NV_ENC_NUM_REF_FRAMES               numRefL1;                   /**< [in]: Specifies max number of reference frames in reference picture list L1, that can be used by hardware for prediction of a frame. 
+                                                                               Check support for numRefL1 using ::NV_ENC_CAPS_SUPPORT_MULTIPLE_REF_FRAMES caps. */
+    uint32_t                            reserved1[267];             /**< [in]: Reserved and must be set to 0 */
     void*                               reserved2[64];              /**< [in]: Reserved and must be set to NULL */
 } NV_ENC_CONFIG_H264;
-
 
 /**
  * \struct _NV_ENC_CONFIG_HEVC
@@ -1227,25 +1426,40 @@ typedef struct _NV_ENC_CONFIG_HEVC
     uint32_t outputBufferingPeriodSEI              :1;              /**< [in]: Set 1 to write SEI buffering period syntax in the bitstream */
     uint32_t outputPictureTimingSEI                :1;              /**< [in]: Set 1 to write SEI picture timing syntax in the bitstream */
     uint32_t outputAUD                             :1;              /**< [in]: Set 1 to write Access Unit Delimiter syntax. */
-    uint32_t enableLTR                             :1;              /**< [in]: Set 1 to enable use of long term reference pictures for inter prediction. */
+    uint32_t enableLTR                             :1;              /**< [in]: Set to 1 to enable LTR (Long Term Reference) frame support. LTR can be used in two modes: "LTR Trust" mode and "LTR Per Picture" mode.
+                                                                               LTR Trust mode: In this mode, ltrNumFrames pictures after IDR are automatically marked as LTR. This mode is enabled by setting ltrTrustMode = 1.
+                                                                                               Use of LTR Trust mode is strongly discouraged as this mode may be deprecated in future releases.
+                                                                               LTR Per Picture mode: In this mode, client can control whether the current picture should be marked as LTR. Enable this mode by setting
+                                                                                                     ltrTrustMode = 0 and ltrMarkFrame = 1 for the picture to be marked as LTR. This is the preferred mode
+                                                                                                     for using LTR.
+                                                                               Note that LTRs are not supported if encoding session is configured with B-frames */
     uint32_t disableSPSPPS                         :1;              /**< [in]: Set 1 to disable VPS,SPS and PPS signalling in the bitstream. */
     uint32_t repeatSPSPPS                          :1;              /**< [in]: Set 1 to output VPS,SPS and PPS for every IDR frame.*/
     uint32_t enableIntraRefresh                    :1;              /**< [in]: Set 1 to enable gradual decoder refresh or intra refresh. If the GOP structure uses B frames this will be ignored */
     uint32_t chromaFormatIDC                       :2;              /**< [in]: Specifies the chroma format. Should be set to 1 for yuv420 input, 3 for yuv444 input.*/
     uint32_t pixelBitDepthMinus8                   :3;              /**< [in]: Specifies pixel bit depth minus 8. Should be set to 0 for 8 bit input, 2 for 10 bit input.*/
-    uint32_t reserved                              :18;             /**< [in]: Reserved bitfields.*/
+    uint32_t enableFillerDataInsertion             :1;              /**< [in]: Set to 1 to enable insertion of filler data in the bitstream.
+                                                                               This flag will take effect only when one of the CBR rate
+                                                                               control modes (NV_ENC_PARAMS_RC_CBR, NV_ENC_PARAMS_RC_CBR_HQ,
+                                                                               NV_ENC_PARAMS_RC_CBR_LOWDELAY_HQ) is in use and both
+                                                                               NV_ENC_INITIALIZE_PARAMS::frameRateNum and
+                                                                               NV_ENC_INITIALIZE_PARAMS::frameRateDen are set to non-zero
+                                                                               values. Setting this field when
+                                                                               NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is also set
+                                                                               is currently not supported and will make ::NvEncInitializeEncoder()
+                                                                               return an error. */
+    uint32_t reserved                              :17;             /**< [in]: Reserved bitfields.*/
     uint32_t idrPeriod;                                             /**< [in]: Specifies the IDR interval. If not set, this is made equal to gopLength in NV_ENC_CONFIG.Low latency application client can set IDR interval to NVENC_INFINITE_GOPLENGTH so that IDR frames are not inserted automatically. */
     uint32_t intraRefreshPeriod;                                    /**< [in]: Specifies the interval between successive intra refresh if enableIntrarefresh is set. Requires enableIntraRefresh to be set.
                                                                     Will be disabled if NV_ENC_CONFIG::gopLength is not set to NVENC_INFINITE_GOPLENGTH. */
     uint32_t intraRefreshCnt;                                       /**< [in]: Specifies the length of intra refresh in number of frames for periodic intra refresh. This value should be smaller than intraRefreshPeriod */
     uint32_t maxNumRefFramesInDPB;                                  /**< [in]: Specifies the maximum number of references frames in the DPB.*/
-    uint32_t ltrNumFrames;                                          /**< [in]: Specifies the number of LTR frames used. 
-                                                                               If ltrTrustMode=1, encoder will mark first numLTRFrames base layer reference frames within each IDR interval as LTR.
-                                                                               If ltrMarkFrame=1, ltrNumFrames specifies maximum number of ltr frames in DPB.
-                                                                               If ltrNumFrames value is more that DPB size(maxNumRefFramesInDPB) encoder will take decision on its own. */
-    uint32_t vpsId;                                                 /**< [in]: Specifies the VPS id of the video parameter set. Currently reserved and must be set to 0. */
-    uint32_t spsId;                                                 /**< [in]: Specifies the SPS id of the sequence header. Currently reserved and must be set to 0. */
-    uint32_t ppsId;                                                 /**< [in]: Specifies the PPS id of the picture header. Currently reserved and must be set to 0. */
+    uint32_t ltrNumFrames;                                          /**< [in]: This parameter has different meaning in two LTR modes.
+                                                                               In "LTR Trust" mode (ltrTrustMode = 1), encoder will mark the first ltrNumFrames base layer reference frames within each IDR interval as LTR.
+                                                                               In "LTR Per Picture" mode (ltrTrustMode = 0 and ltrMarkFrame = 1), ltrNumFrames specifies maximum number of LTR frames in DPB. */
+    uint32_t vpsId;                                                 /**< [in]: Specifies the VPS id of the video parameter set */
+    uint32_t spsId;                                                 /**< [in]: Specifies the SPS id of the sequence header */
+    uint32_t ppsId;                                                 /**< [in]: Specifies the PPS id of the picture header */
     uint32_t sliceMode;                                             /**< [in]: This parameter in conjunction with sliceModeData specifies the way in which the picture is divided into slices
                                                                                 sliceMode = 0 CTU based slices, sliceMode = 1 Byte based slices, sliceMode = 2 CTU row based slices, sliceMode = 3, numSlices in Picture
                                                                                 When sliceMode == 0 and sliceModeData == 0 whole picture will be coded with one slice */
@@ -1256,12 +1470,48 @@ typedef struct _NV_ENC_CONFIG_HEVC
                                                                                 sliceMode = 3, sliceModeData specifies number of slices in the picture. Driver will divide picture into slices optimally */
     uint32_t maxTemporalLayersMinus1;                               /**< [in]: Specifies the max temporal layer used for hierarchical coding. */
     NV_ENC_CONFIG_HEVC_VUI_PARAMETERS   hevcVUIParameters;          /**< [in]: Specifies the HEVC video usability info pamameters */
-    uint32_t ltrTrustMode;                                          /**< [in]: Specifies the LTR operating mode.
-                                                                               Set to 0 to disallow encoding using LTR frames until later specified.
-                                                                               Set to 1 to allow encoding using LTR frames unless later invalidated.*/    
-    uint32_t reserved1[217];                                        /**< [in]: Reserved and must be set to 0.*/
-    void*    reserved2[64];                                         /**< [in]: Reserved and must be set to NULL */
+    uint32_t ltrTrustMode;                                          /**< [in]: Specifies the LTR operating mode. See comments near NV_ENC_CONFIG_HEVC::enableLTR for description of the two modes.
+                                                                               Set to 1 to use "LTR Trust" mode of LTR operation. Clients are discouraged to use "LTR Trust" mode as this mode may 
+                                                                               be deprecated in future releases.
+                                                                               Set to 0 when using "LTR Per Picture" mode of LTR operation. */
+    NV_ENC_BFRAME_REF_MODE              useBFramesAsRef;            /**< [in]: Specifies the B-Frame as reference mode. Check support for useBFramesAsRef mode using  ::NV_ENC_CAPS_SUPPORT_BFRAME_REF_MODE caps.*/
+    NV_ENC_NUM_REF_FRAMES               numRefL0;                   /**< [in]: Specifies max number of reference frames in reference picture list L0, that can be used by hardware for prediction of a frame. 
+                                                                               Check support for numRefL0 using ::NV_ENC_CAPS_SUPPORT_MULTIPLE_REF_FRAMES caps. */
+    NV_ENC_NUM_REF_FRAMES               numRefL1;                   /**< [in]: Specifies max number of reference frames in reference picture list L1, that can be used by hardware for prediction of a frame. 
+                                                                               Check support for numRefL1 using ::NV_ENC_CAPS_SUPPORT_MULTIPLE_REF_FRAMES caps. */
+    uint32_t                            reserved1[214];             /**< [in]: Reserved and must be set to 0.*/
+    void*                               reserved2[64];              /**< [in]: Reserved and must be set to NULL */
 } NV_ENC_CONFIG_HEVC;
+
+/**
+ * \struct _NV_ENC_CONFIG_H264_MEONLY
+ * H264 encoder configuration parameters for ME only Mode
+ * 
+ */
+typedef struct _NV_ENC_CONFIG_H264_MEONLY
+{
+    uint32_t disablePartition16x16 :1;                          /**< [in]: Disable MotionEstimation on 16x16 blocks*/
+    uint32_t disablePartition8x16  :1;                          /**< [in]: Disable MotionEstimation on 8x16 blocks*/
+    uint32_t disablePartition16x8  :1;                          /**< [in]: Disable MotionEstimation on 16x8 blocks*/
+    uint32_t disablePartition8x8   :1;                          /**< [in]: Disable MotionEstimation on 8x8 blocks*/
+    uint32_t disableIntraSearch    :1;                          /**< [in]: Disable Intra search during MotionEstimation*/
+    uint32_t bStereoEnable         :1;                          /**< [in]: Enable Stereo Mode for Motion Estimation where each view is independently executed*/
+    uint32_t reserved              :26;                         /**< [in]: Reserved and must be set to 0 */
+    uint32_t reserved1 [255];                                   /**< [in]: Reserved and must be set to 0 */
+    void*    reserved2[64];                                     /**< [in]: Reserved and must be set to NULL */
+} NV_ENC_CONFIG_H264_MEONLY;
+
+
+/**
+ * \struct _NV_ENC_CONFIG_HEVC_MEONLY
+ * HEVC encoder configuration parameters for ME only Mode
+ * 
+ */
+typedef struct _NV_ENC_CONFIG_HEVC_MEONLY
+{
+    uint32_t reserved [256];                                   /**< [in]: Reserved and must be set to 0 */
+    void*    reserved1[64];                                     /**< [in]: Reserved and must be set to NULL */
+} NV_ENC_CONFIG_HEVC_MEONLY;
 
 /**
  * \struct _NV_ENC_CODEC_CONFIG
@@ -1269,9 +1519,11 @@ typedef struct _NV_ENC_CONFIG_HEVC
  */
 typedef union _NV_ENC_CODEC_CONFIG
 {
-    NV_ENC_CONFIG_H264      h264Config;                  /**< [in]: Specifies the H.264-specific encoder configuration. */
-    NV_ENC_CONFIG_HEVC      hevcConfig;                  /**< [in]: Specifies the HEVC-specific encoder configuration. */
-    uint32_t                reserved[256];               /**< [in]: Reserved and must be set to 0 */
+    NV_ENC_CONFIG_H264        h264Config;                /**< [in]: Specifies the H.264-specific encoder configuration. */
+    NV_ENC_CONFIG_HEVC        hevcConfig;                /**< [in]: Specifies the HEVC-specific encoder configuration. */
+    NV_ENC_CONFIG_H264_MEONLY h264MeOnlyConfig;          /**< [in]: Specifies the H.264-specific ME only encoder configuration. */
+    NV_ENC_CONFIG_HEVC_MEONLY hevcMeOnlyConfig;          /**< [in]: Specifies the HEVC-specific ME only encoder configuration. */
+    uint32_t                reserved[320];               /**< [in]: Reserved and must be set to 0 */
 } NV_ENC_CODEC_CONFIG;
 
 
@@ -1297,7 +1549,7 @@ typedef struct _NV_ENC_CONFIG
 } NV_ENC_CONFIG;
 
 /** macro for constructing the version field of ::_NV_ENC_CONFIG */
-#define NV_ENC_CONFIG_VER (NVENCAPI_STRUCT_VERSION(6) | ( 1<<31 ))
+#define NV_ENC_CONFIG_VER (NVENCAPI_STRUCT_VERSION(7) | ( 1<<31 ))
 
 
 /**
@@ -1322,7 +1574,9 @@ typedef struct _NV_ENC_INITIALIZE_PARAMS
     uint32_t                                   enableExternalMEHints     :1;    /**< [in]: Set to 1 to enable external ME hints for the current frame. For NV_ENC_INITIALIZE_PARAMS::enablePTD=1 with B frames, programming L1 hints is optional for B frames since Client doesn't know internal GOP structure. 
                                                                                            NV_ENC_PIC_PARAMS::meHintRefPicDist should preferably be set with enablePTD=1. */
     uint32_t                                   enableMEOnlyMode          :1;    /**< [in]: Set to 1 to enable ME Only Mode .*/
-    uint32_t                                   reservedBitFields         :28;   /**< [in]: Reserved bitfields and must be set to 0 */
+    uint32_t                                   enableWeightedPrediction  :1;    /**< [in]: Set this to 1 to enable weighted prediction. Not supported if encode session is configured for B-Frames( 'frameIntervalP' in NV_ENC_CONFIG is greater than 1).*/
+    uint32_t                                   enableOutputInVidmem      :1;    /**< [in]: Set this to 1 to enable output of NVENC in video memory buffer created by application. This feature is not supported for HEVC ME only mode. */
+    uint32_t                                   reservedBitFields         :26;   /**< [in]: Reserved bitfields and must be set to 0 */
     uint32_t                                   privDataSize;                    /**< [in]: Reserved private data buffer size and must be set to 0 */
     void*                                      privData;                        /**< [in]: Reserved private data buffer and must be set to NULL */
     NV_ENC_CONFIG*                             encodeConfig;                    /**< [in]: Specifies the advanced codec specific structure. If client has sent a valid codec config structure, it will override parameters set by the NV_ENC_INITIALIZE_PARAMS::presetGUID parameter. If set to NULL the NvEncodeAPI interface will use the NV_ENC_INITIALIZE_PARAMS::presetGUID to set the codec specific parameters.
@@ -1350,7 +1604,21 @@ typedef struct _NV_ENC_INITIALIZE_PARAMS
 typedef struct _NV_ENC_RECONFIGURE_PARAMS
 {
     uint32_t                                    version;                        /**< [in]: Struct version. Must be set to ::NV_ENC_RECONFIGURE_PARAMS_VER. */
-    NV_ENC_INITIALIZE_PARAMS                    reInitEncodeParams;             /**< [in]: Encoder session re-initialization parameters. */
+    NV_ENC_INITIALIZE_PARAMS                    reInitEncodeParams;             /**< [in]: Encoder session re-initialization parameters.
+                                                                                           If reInitEncodeParams.encodeConfig is NULL and
+                                                                                           reInitEncodeParams.presetGUID is the same as the preset
+                                                                                           GUID specified on the call to NvEncInitializeEncoder(),
+                                                                                           EncodeAPI will continue to use the existing encode
+                                                                                           configuration.
+                                                                                           If reInitEncodeParams.encodeConfig is NULL and
+                                                                                           reInitEncodeParams.presetGUID is different from the preset
+                                                                                           GUID specified on the call to NvEncInitializeEncoder(),
+                                                                                           EncodeAPI will try to use the default configuration for
+                                                                                           the preset specified by reInitEncodeParams.presetGUID.
+                                                                                           In this case, reconfiguration may fail if the new
+                                                                                           configuration is incompatible with the existing
+                                                                                           configuration (e.g. the new configuration results in
+                                                                                           a change in the GOP structure). */
     uint32_t                                    resetEncoder            :1;     /**< [in]: This resets the rate control states and other internal encoder states. This should be used only with an IDR frame.
                                                                                            If NV_ENC_INITIALIZE_PARAMS::enablePTD is set to 1, encoder will force the frame type to IDR */
     uint32_t                                    forceIDR                :1;     /**< [in]: Encode the current picture as an IDR picture. This flag is only valid when Picture type decision is taken by the Encoder
@@ -1377,6 +1645,34 @@ typedef struct _NV_ENC_PRESET_CONFIG
 /** macro for constructing the version field of ::_NV_ENC_PRESET_CONFIG */
 #define NV_ENC_PRESET_CONFIG_VER (NVENCAPI_STRUCT_VERSION(4) | ( 1<<31 ))
 
+
+/**
+ * \struct _NV_ENC_PIC_PARAMS_MVC
+ * MVC-specific parameters to be sent on a per-frame basis.
+ */ 
+typedef struct _NV_ENC_PIC_PARAMS_MVC
+{
+    uint32_t version;                                    /**< [in]: Struct version. Must be set to ::NV_ENC_PIC_PARAMS_MVC_VER. */
+    uint32_t viewID;                                     /**< [in]: Specifies the view ID associated with the current input view. */
+    uint32_t temporalID;                                 /**< [in]: Specifies the temporal ID associated with the current input view. */
+    uint32_t priorityID;                                 /**< [in]: Specifies the priority ID associated with the current input view. Reserved and ignored by the NvEncodeAPI interface. */
+    uint32_t reserved1[12];                              /**< [in]: Reserved and must be set to 0. */
+    void*    reserved2[8];                              /**< [in]: Reserved and must be set to NULL. */
+}NV_ENC_PIC_PARAMS_MVC;
+
+/** macro for constructing the version field of ::_NV_ENC_PIC_PARAMS_MVC */
+#define NV_ENC_PIC_PARAMS_MVC_VER NVENCAPI_STRUCT_VERSION(1)
+
+
+/**
+ * \union _NV_ENC_PIC_PARAMS_H264_EXT
+ * H264 extension  picture parameters
+ */ 
+typedef union _NV_ENC_PIC_PARAMS_H264_EXT
+{
+    NV_ENC_PIC_PARAMS_MVC mvcPicParams;                  /**< [in]: Specifies the MVC picture parameters. */
+    uint32_t reserved1[32];                              /**< [in]: Reserved and must be set to 0.        */
+}NV_ENC_PIC_PARAMS_H264_EXT;
 
 /**
  * \struct _NV_ENC_SEI_PAYLOAD
@@ -1425,10 +1721,15 @@ typedef struct _NV_ENC_PIC_PARAMS_H264
                                                                     sliceMode = 2, sliceModeData specifies # of MB rows in each slice (except last slice)
                                                                     sliceMode = 3, sliceModeData specifies number of slices in the picture. Driver will divide picture into slices optimally */
     uint32_t ltrMarkFrameIdx;                            /**< [in]: Specifies the long term referenceframe index to use for marking this frame as LTR.*/
-    uint32_t ltrUseFrameBitmap;                          /**< [in]: Specifies the the associated bitmap of LTR frame indices when encoding this frame. */
-    uint32_t ltrUsageMode;                               /**< [in]: Specifies additional usage constraints for encoding using LTR frames from this point further. 0: no constraints, 1: no short term refs older than current, no previous LTR frames.*/
-    uint32_t reserved [243];                             /**< [in]: Reserved and must be set to 0. */
-    void*    reserved2[62];                              /**< [in]: Reserved and must be set to NULL. */
+    uint32_t ltrUseFrameBitmap;                          /**< [in]: Specifies the the associated bitmap of LTR frame indices to use when encoding this frame. */
+    uint32_t ltrUsageMode;                               /**< [in]: Not supported. Reserved for future use and must be set to 0. */
+    uint32_t forceIntraSliceCount;                       /**< [in]: Specfies the number of slices to be forced to Intra in the current picture.
+                                                                    This option along with forceIntraSliceIdx[] array needs to be used with sliceMode = 3 only */
+    uint32_t *forceIntraSliceIdx;                        /**< [in]: Slice indices to be forced to intra in the current picture. Each slice index should be <= num_slices_in_picture -1. Index starts from 0 for first slice.
+                                                                    The number of entries in this array should be equal to forceIntraSliceCount */															
+    NV_ENC_PIC_PARAMS_H264_EXT h264ExtPicParams;         /**< [in]: Specifies the H264 extension config parameters using this config. */
+    uint32_t reserved [210];                             /**< [in]: Reserved and must be set to 0. */
+    void*    reserved2[61];                              /**< [in]: Reserved and must be set to NULL. */
 } NV_ENC_PIC_PARAMS_H264;
 
 /**
@@ -1465,8 +1766,8 @@ typedef struct _NV_ENC_PIC_PARAMS_HEVC
                                                                     sliceMode = 2, sliceModeData specifies # of CTU rows in each slice (except last slice)
                                                                     sliceMode = 3, sliceModeData specifies number of slices in the picture. Driver will divide picture into slices optimally */
     uint32_t ltrMarkFrameIdx;                            /**< [in]: Specifies the long term reference frame index to use for marking this frame as LTR.*/
-    uint32_t ltrUseFrameBitmap;                          /**< [in]: Specifies the associated bitmap of LTR frame indices when encoding this frame. */
-    uint32_t ltrUsageMode;                               /**< [in]: Specifies additional usage constraints for encoding using LTR frames from this point further. 0: no constraints, 1: no short term refs older than current, no previous LTR frames.*/
+    uint32_t ltrUseFrameBitmap;                          /**< [in]: Specifies the associated bitmap of LTR frame indices to use when encoding this frame. */
+    uint32_t ltrUsageMode;                               /**< [in]: Not supported. Reserved for future use and must be set to 0. */
     uint32_t seiPayloadArrayCnt;                         /**< [in]: Specifies the number of elements allocated in  seiPayloadArray array. */
     uint32_t reserved;                                   /**< [in]: Reserved and must be set to 0. */
     NV_ENC_SEI_PAYLOAD* seiPayloadArray;                 /**< [in]: Array of SEI payloads which will be inserted for this frame. */
@@ -1474,14 +1775,13 @@ typedef struct _NV_ENC_PIC_PARAMS_HEVC
     void*    reserved3[61];                              /**< [in]: Reserved and must be set to NULL. */
 } NV_ENC_PIC_PARAMS_HEVC;
 
-
 /**
  * Codec specific per-picture encoding parameters.
  */
 typedef union _NV_ENC_CODEC_PIC_PARAMS
 {
     NV_ENC_PIC_PARAMS_H264 h264PicParams;                /**< [in]: H264 encode picture params. */
-    NV_ENC_PIC_PARAMS_HEVC hevcPicParams;                /**< [in]: HEVC encode picture params. Currently unsupported and must not to be used.  */
+    NV_ENC_PIC_PARAMS_HEVC hevcPicParams;                /**< [in]: HEVC encode picture params. */
     uint32_t               reserved[256];                /**< [in]: Reserved and must be set to 0. */
 } NV_ENC_CODEC_PIC_PARAMS;
 
@@ -1500,7 +1800,14 @@ typedef struct _NV_ENC_PIC_PARAMS
     uint64_t                                    inputTimeStamp;                 /**< [in]: Specifies presentation timestamp associated with the input picture. */
     uint64_t                                    inputDuration;                  /**< [in]: Specifies duration of the input picture */
     NV_ENC_INPUT_PTR                            inputBuffer;                    /**< [in]: Specifies the input buffer pointer. Client must use a pointer obtained from ::NvEncCreateInputBuffer() or ::NvEncMapInputResource() APIs.*/
-    NV_ENC_OUTPUT_PTR                           outputBitstream;                /**< [in]: Specifies the pointer to output buffer. Client should use a pointer obtained from ::NvEncCreateBitstreamBuffer() API. */
+    NV_ENC_OUTPUT_PTR                           outputBitstream;                /**< [in]: Specifies the output buffer pointer. 
+                                                                                           If NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is set to 0, specifies the pointer to output buffer. Client should use a pointer obtained from ::NvEncCreateBitstreamBuffer() API. 
+                                                                                           If NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is set to 1, client should allocate buffer in video memory for NV_ENC_ENCODE_OUT_PARAMS struct and encoded bitstream data. Client 
+                                                                                           should use a pointer obtained from ::NvEncMapInputResource() API, when mapping this output buffer and assign it to NV_ENC_PIC_PARAMS::outputBitstream. 
+                                                                                           First 256 bytes of this buffer should be interpreted as NV_ENC_ENCODE_OUT_PARAMS struct followed by encoded bitstream data. Recommended size for output buffer is sum of size of 
+                                                                                           NV_ENC_ENCODE_OUT_PARAMS struct and twice the input frame size for lower resolution eg. CIF and 1.5 times the input frame size for higher resolutions. If encoded bitstream size is 
+                                                                                           greater than the allocated buffer size for encoded bitstream, then the output buffer will have encoded bitstream data equal to buffer size. All CUDA operations on this buffer must use 
+                                                                                           the default stream. */
     void*                                       completionEvent;                /**< [in]: Specifies an event to be signalled on completion of encoding of this Frame [only if operating in Asynchronous mode]. Each output buffer should be associated with a distinct event pointer. */
     NV_ENC_BUFFER_FORMAT                        bufferFmt;                      /**< [in]: Specifies the input buffer format. */
     NV_ENC_PIC_STRUCT                           pictureStruct;                  /**< [in]: Specifies structure of the input picture. */
@@ -1508,12 +1815,16 @@ typedef struct _NV_ENC_PIC_PARAMS
     NV_ENC_CODEC_PIC_PARAMS                     codecPicParams;                 /**< [in]: Specifies the codec specific per-picture encoding parameters. */
     NVENC_EXTERNAL_ME_HINT_COUNTS_PER_BLOCKTYPE meHintCountsPerBlock[2];        /**< [in]: Specifies the number of hint candidates per block per direction for the current frame. meHintCountsPerBlock[0] is for L0 predictors and meHintCountsPerBlock[1] is for L1 predictors.
                                                                                            The candidate count in NV_ENC_PIC_PARAMS::meHintCountsPerBlock[lx] must never exceed NV_ENC_INITIALIZE_PARAMS::maxMEHintCountsPerBlock[lx] provided during encoder intialization. */
-    NVENC_EXTERNAL_ME_HINT                     *meExternalHints;                /**< [in]: Specifies the pointer to ME external hints for the current frame. The size of ME hint buffer should be equal to number of macroblocks multiplied by the total number of candidates per macroblock.
+    NVENC_EXTERNAL_ME_HINT                     *meExternalHints;                /**< [in]: Specifies the pointer to ME external hints for the current frame. The size of ME hint buffer should be equal to number of macroblocks * the total number of candidates per macroblock.
                                                                                            The total number of candidates per MB per direction = 1*meHintCountsPerBlock[Lx].numCandsPerBlk16x16 + 2*meHintCountsPerBlock[Lx].numCandsPerBlk16x8 + 2*meHintCountsPerBlock[Lx].numCandsPerBlk8x8  
                                                                                            + 4*meHintCountsPerBlock[Lx].numCandsPerBlk8x8. For frames using bidirectional ME , the total number of candidates for single macroblock is sum of total number of candidates per MB for each direction (L0 and L1) */
     uint32_t                                    reserved1[6];                    /**< [in]: Reserved and must be set to 0 */
     void*                                       reserved2[2];                    /**< [in]: Reserved and must be set to NULL */
-    int8_t                                     *qpDeltaMap;                      /**< [in]: Specifies the pointer to signed byte array containing QP delta value per MB in raster scan order in the current picture. This QP modifier is applied on top of the QP chosen by rate control. */
+    int8_t                                     *qpDeltaMap;                      /**< [in]: Specifies the pointer to signed byte array containing value per MB in raster scan order for the current picture, which will be interpreted depending on NV_ENC_RC_PARAMS::qpMapMode. 
+                                                                                            If NV_ENC_RC_PARAMS::qpMapMode is NV_ENC_QP_MAP_DELTA, qpDeltaMap specifies QP modifier per MB. This QP modifier will be applied on top of the QP chosen by rate control.
+                                                                                            If NV_ENC_RC_PARAMS::qpMapMode is NV_ENC_QP_MAP_EMPHASIS, qpDeltaMap specifies Emphasis Level Map per MB. This level value along with QP chosen by rate control is used to 
+                                                                                            compute the QP modifier, which in turn is applied on top of QP chosen by rate control.
+                                                                                            If NV_ENC_RC_PARAMS::qpMapMode is NV_ENC_QP_MAP_DISABLED, value in qpDeltaMap will be ignored.*/
     uint32_t                                    qpDeltaMapSize;                  /**< [in]: Specifies the size in bytes of qpDeltaMap surface allocated by client and pointed to by NV_ENC_PIC_PARAMS::qpDeltaMap. Surface (array) should be picWidthInMbs * picHeightInMbs */
     uint32_t                                    reservedBitFields;               /**< [in]: Reserved bitfields and must be set to 0 */
     uint16_t                                    meHintRefPicDist[2];             /**< [in]: Specifies temporal distance for reference picture (NVENC_EXTERNAL_ME_HINT::refidx = 0) used during external ME with NV_ENC_INITALIZE_PARAMS::enablePTD = 1 . meHintRefPicDist[0] is for L0 hints and meHintRefPicDist[1] is for L1 hints. 
@@ -1529,6 +1840,7 @@ typedef struct _NV_ENC_PIC_PARAMS
 /**
  * \struct _NV_ENC_MEONLY_PARAMS
  * MEOnly parameters that need to be sent on a per motion estimation basis.
+ * NV_ENC_MEONLY_PARAMS::meExternalHints is supported for H264 only.
  */
 typedef struct _NV_ENC_MEONLY_PARAMS
 {
@@ -1537,17 +1849,30 @@ typedef struct _NV_ENC_MEONLY_PARAMS
     uint32_t                inputHeight;                        /**< [in]: Specifies the input buffer height */
     NV_ENC_INPUT_PTR        inputBuffer;                        /**< [in]: Specifies the input buffer pointer. Client must use a pointer obtained from NvEncCreateInputBuffer() or NvEncMapInputResource() APIs. */
     NV_ENC_INPUT_PTR        referenceFrame;                     /**< [in]: Specifies the reference frame pointer */
-    NV_ENC_OUTPUT_PTR       mvBuffer;                           /**< [in]: Specifies the pointer to motion vector data buffer allocated by NvEncCreateMVBuffer. Client must lock mvBuffer using ::NvEncLockBitstream() API to get the motion vector data. */
+    NV_ENC_OUTPUT_PTR       mvBuffer;                           /**< [in]: Specifies the output buffer pointer.
+                                                                           If NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is set to 0, specifies the pointer to motion vector data buffer allocated by NvEncCreateMVBuffer. 
+                                                                           Client must lock mvBuffer using ::NvEncLockBitstream() API to get the motion vector data. 
+                                                                           If NV_ENC_INITIALIZE_PARAMS::enableOutputInVidmem is set to 1, client should allocate buffer in video memory for storing the motion vector data. The size of this buffer must 
+                                                                           be equal to total number of macroblocks multiplied by size of NV_ENC_H264_MV_DATA struct. Client should use a pointer obtained from ::NvEncMapInputResource() API, when mapping this 
+                                                                           output buffer and assign it to NV_ENC_MEONLY_PARAMS::mvBuffer. All CUDA operations on this buffer must use the default stream. */
     NV_ENC_BUFFER_FORMAT    bufferFmt;                          /**< [in]: Specifies the input buffer format. */
     void*                   completionEvent;                    /**< [in]: Specifies an event to be signalled on completion of motion estimation 
                                                                            of this Frame [only if operating in Asynchronous mode]. 
                                                                            Each output buffer should be associated with a distinct event pointer. */
-    uint32_t                reserved1[252];                     /**< [in]: Reserved and must be set to 0 */
-    void*                   reserved2[60];                      /**< [in]: Reserved and must be set to NULL */
+    uint32_t                viewID;                             /**< [in]: Specifies left,right viewID if NV_ENC_CONFIG_H264_MEONLY::bStereoEnable is set.
+                                                                            viewID can be 0,1 if bStereoEnable is set, 0 otherwise. */
+    NVENC_EXTERNAL_ME_HINT_COUNTS_PER_BLOCKTYPE 
+                            meHintCountsPerBlock[2];            /**< [in]: Specifies the number of hint candidates per block for the current frame. meHintCountsPerBlock[0] is for L0 predictors.
+                                                                            The candidate count in NV_ENC_PIC_PARAMS::meHintCountsPerBlock[lx] must never exceed NV_ENC_INITIALIZE_PARAMS::maxMEHintCountsPerBlock[lx] provided during encoder intialization. */
+    NVENC_EXTERNAL_ME_HINT  *meExternalHints;                   /**< [in]: Specifies the pointer to ME external hints for the current frame. The size of ME hint buffer should be equal to number of macroblocks * the total number of candidates per macroblock.
+                                                                            The total number of candidates per MB per direction = 1*meHintCountsPerBlock[Lx].numCandsPerBlk16x16 + 2*meHintCountsPerBlock[Lx].numCandsPerBlk16x8 + 2*meHintCountsPerBlock[Lx].numCandsPerBlk8x8  
+                                                                            + 4*meHintCountsPerBlock[Lx].numCandsPerBlk8x8. For frames using bidirectional ME , the total number of candidates for single macroblock is sum of total number of candidates per MB for each direction (L0 and L1) */
+    uint32_t                reserved1[243];                     /**< [in]: Reserved and must be set to 0 */
+    void*                   reserved2[59];                      /**< [in]: Reserved and must be set to NULL */
 } NV_ENC_MEONLY_PARAMS;
 
 /** NV_ENC_MEONLY_PARAMS struct version*/
-#define NV_ENC_MEONLY_PARAMS_VER NVENCAPI_STRUCT_VERSION(2)
+#define NV_ENC_MEONLY_PARAMS_VER NVENCAPI_STRUCT_VERSION(3)
 
 
 /**
@@ -1559,7 +1884,8 @@ typedef struct _NV_ENC_LOCK_BITSTREAM
     uint32_t                version;                     /**< [in]: Struct version. Must be set to ::NV_ENC_LOCK_BITSTREAM_VER. */
     uint32_t                doNotWait         :1;        /**< [in]: If this flag is set, the NvEncodeAPI interface will return buffer pointer even if operation is not completed. If not set, the call will block until operation completes. */
     uint32_t                ltrFrame          :1;        /**< [out]: Flag indicating this frame is marked as LTR frame */
-    uint32_t                reservedBitFields :30;       /**< [in]: Reserved bit fields and must be set to 0 */
+    uint32_t                getRCStats        :1;        /**< [in]: If this flag is set then lockBitstream call will add additional intra-inter MB count and average MVX, MVY */
+    uint32_t                reservedBitFields :29;       /**< [in]: Reserved bit fields and must be set to 0 */
     void*                   outputBitstream;             /**< [in]: Pointer to the bitstream buffer being locked. */
     uint32_t*               sliceOffsets;                /**< [in,out]: Array which receives the slice offsets. This is not supported if NV_ENC_CONFIG_H264::sliceMode is 1 on Kepler GPUs. Array size must be equal to size of frame in MBs. */
     uint32_t                frameIdx;                    /**< [out]: Frame no. for which the bitstream is being retrieved. */ 
@@ -1577,7 +1903,12 @@ typedef struct _NV_ENC_LOCK_BITSTREAM
     uint32_t                frameSatd;                   /**< [out]: Total SATD cost for whole frame. */
     uint32_t                ltrFrameIdx;                 /**< [out]: Frame index associated with this LTR frame. */
     uint32_t                ltrFrameBitmap;              /**< [out]: Bitmap of LTR frames indices which were used for encoding this frame. Value of 0 if no LTR frames were used. */
-    uint32_t                reserved [236];              /**< [in]: Reserved and must be set to 0 */
+    uint32_t                reserved[13];                /**< [in]: Reserved and must be set to 0 */
+    uint32_t                intraMBCount;                /**< [out]: For H264, Number of Intra MBs in the encoded frame. For HEVC, Number of Intra CTBs in the encoded frame. Supported only if _NV_ENC_LOCK_BITSTREAM::getRCStats set to 1. */
+    uint32_t                interMBCount;                /**< [out]: For H264, Number of Inter MBs in the encoded frame, includes skip MBs. For HEVC, Number of Inter CTBs in the encoded frame. Supported only if _NV_ENC_LOCK_BITSTREAM::getRCStats set to 1. */
+    int32_t                 averageMVX;                  /**< [out]: Average Motion Vector in X direction for the encoded frame. Supported only if _NV_ENC_LOCK_BITSTREAM::getRCStats set to 1. */
+    int32_t                 averageMVY;                  /**< [out]: Average Motion Vector in y direction for the encoded frame. Supported only if _NV_ENC_LOCK_BITSTREAM::getRCStats set to 1. */
+    uint32_t                reserved1[219];              /**< [in]: Reserved and must be set to 0 */
     void*                   reserved2[64];               /**< [in]: Reserved and must be set to NULL */
 } NV_ENC_LOCK_BITSTREAM;
 
@@ -1625,21 +1956,48 @@ typedef struct _NV_ENC_MAP_INPUT_RESOURCE
 #define NV_ENC_MAP_INPUT_RESOURCE_VER NVENCAPI_STRUCT_VERSION(4)
 
 /**
+ * \struct _NV_ENC_INPUT_RESOURCE_OPENGL_TEX
+ * NV_ENC_REGISTER_RESOURCE::resourceToRegister must be a pointer to a variable of this type,
+ * when NV_ENC_REGISTER_RESOURCE::resourceType is NV_ENC_INPUT_RESOURCE_TYPE_OPENGL_TEX
+ */
+typedef struct _NV_ENC_INPUT_RESOURCE_OPENGL_TEX
+{
+    uint32_t texture;                                     /**< [in]: The name of the texture to be used. */
+    uint32_t target;                                      /**< [in]: Accepted values are GL_TEXTURE_RECTANGLE and GL_TEXTURE_2D. */
+} NV_ENC_INPUT_RESOURCE_OPENGL_TEX;
+
+/**
  * \struct _NV_ENC_REGISTER_RESOURCE
  * Register a resource for future use with the Nvidia Video Encoder Interface.
  */
 typedef struct _NV_ENC_REGISTER_RESOURCE
 {
     uint32_t                    version;                        /**< [in]: Struct version. Must be set to ::NV_ENC_REGISTER_RESOURCE_VER. */
-    NV_ENC_INPUT_RESOURCE_TYPE  resourceType;                   /**< [in]: Specifies the type of resource to be registered. Supported values are ::NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX, ::NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR. */
+    NV_ENC_INPUT_RESOURCE_TYPE  resourceType;                   /**< [in]: Specifies the type of resource to be registered.
+                                                                           Supported values are
+                                                                           ::NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX,
+                                                                           ::NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR,
+                                                                           ::NV_ENC_INPUT_RESOURCE_TYPE_OPENGL_TEX */
     uint32_t                    width;                          /**< [in]: Input buffer Width. */
     uint32_t                    height;                         /**< [in]: Input buffer Height. */
-    uint32_t                    pitch;                          /**< [in]: Input buffer Pitch.  */
+    uint32_t                    pitch;                          /**< [in]: Input buffer Pitch.
+                                                                           For ::NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX resources, set this to 0.
+                                                                           For ::NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR resources, set this to
+                                                                             the pitch as obtained from cuMemAllocPitch(), or to the width in
+                                                                             bytes (if this resource was created by using cuMemAlloc()). This
+                                                                             value must be a multiple of 4.
+                                                                           For ::NV_ENC_INPUT_RESOURCE_TYPE_CUDAARRAY resources, set this to the
+                                                                             width of the allocation in bytes (i.e.
+                                                                             CUDA_ARRAY3D_DESCRIPTOR::Width * CUDA_ARRAY3D_DESCRIPTOR::NumChannels).
+                                                                           For ::NV_ENC_INPUT_RESOURCE_TYPE_OPENGL_TEX resources, set this to the
+                                                                             texture width multiplied by the number of components in the texture
+                                                                             format. */
     uint32_t                    subResourceIndex;               /**< [in]: Subresource Index of the DirectX resource to be registered. Should be set to 0 for other interfaces. */
     void*                       resourceToRegister;             /**< [in]: Handle to the resource that is being registered. */
     NV_ENC_REGISTERED_PTR       registeredResource;             /**< [out]: Registered resource handle. This should be used in future interactions with the Nvidia Video Encoder Interface. */
     NV_ENC_BUFFER_FORMAT        bufferFormat;                   /**< [in]: Buffer format of resource to be registered. */
-    uint32_t                    reserved1[248];                 /**< [in]: Reserved and must be set to 0. */
+    NV_ENC_BUFFER_USAGE         bufferUsage;                    /**< [in]: Usage of resource to be registered. */
+    uint32_t                    reserved1[247];                 /**< [in]: Reserved and must be set to 0. */
     void*                       reserved2[62];                  /**< [in]: Reserved and must be set to NULL. */
 } NV_ENC_REGISTER_RESOURCE;
 
@@ -2219,6 +2577,41 @@ NVENCSTATUS NVENCAPI NvEncCreateInputBuffer                     (void* encoder, 
  */
 NVENCSTATUS NVENCAPI NvEncDestroyInputBuffer                    (void* encoder, NV_ENC_INPUT_PTR inputBuffer);
 
+// NvEncSetIOCudaStreams
+/**
+ * \brief Set input and output CUDA stream for specified encoder attribute.
+ *
+ * Encoding may involve CUDA pre-processing on the input and post-processing on encoded output.
+ * This function is used to set input and output CUDA streams to pipeline the CUDA pre-processing 
+ * and post-processing tasks. Clients should call this function before the call to 
+ * NvEncUnlockInputBuffer(). If this function is not called, the default CUDA stream is used for 
+ * input and output processing. After a successful call to this function, the streams specified 
+ * in that call will replace the previously-used streams. 
+ * This API is supported for NVCUVID interface only.
+ *
+ * \param [in] encoder 
+ *   Pointer to the NvEncodeAPI interface.
+ * \param [in] inputStream
+ *   Pointer to CUstream which is used to process ::NV_ENC_PIC_PARAMS::inputFrame for encode.
+ *   In case of ME-only mode, inputStream is used to process ::NV_ENC_MEONLY_PARAMS::inputBuffer and 
+ *   ::NV_ENC_MEONLY_PARAMS::referenceFrame
+ * \param [in] outputStream
+ *  Pointer to CUstream which is used to process ::NV_ENC_PIC_PARAMS::outputBuffer for encode.
+ *  In case of ME-only mode, outputStream is used to process ::NV_ENC_MEONLY_PARAMS::mvBuffer
+ *
+ * \return
+ * ::NV_ENC_SUCCESS \n
+ * ::NV_ENC_ERR_INVALID_PTR \n
+ * ::NV_ENC_ERR_INVALID_ENCODERDEVICE \n
+ * ::NV_ENC_ERR_DEVICE_NOT_EXIST \n
+ * ::NV_ENC_ERR_UNSUPPORTED_PARAM \n
+ * ::NV_ENC_ERR_OUT_OF_MEMORY \n
+ * ::NV_ENC_ERR_INVALID_PARAM \n
+ * ::NV_ENC_ERR_INVALID_VERSION \n
+ * ::NV_ENC_ERR_GENERIC \n
+ */
+NVENCSTATUS NVENCAPI NvEncSetIOCudaStreams                     (void* encoder, NV_ENC_CUSTREAM_PTR inputStream, NV_ENC_CUSTREAM_PTR outputStream);
+
 
 // NvEncCreateBitstreamBuffer
 /**
@@ -2298,6 +2691,11 @@ NVENCSTATUS NVENCAPI NvEncDestroyBitstreamBuffer                (void* encoder, 
  * - NV_ENC_PIC_PARAMS_H264::frameNumSyntax(H264 only)
  * - NV_ENC_PIC_PARAMS_H264::refPicFlag(H264 only)
  *
+ *\par MVC Encoding:
+ * For MVC encoding the client must call encode picture api for each view separately
+ * and must pass valid view id in NV_ENC_PIC_PARAMS_MVC::viewID field. Currently
+ * NvEncodeAPI only support stereo MVC so client must send viewID as 0 for base
+ * view and view ID as 1 for dependent view.
  *
  *\par Asynchronous Encoding
  * If the client has enabled asynchronous mode of encoding by setting 
@@ -2731,8 +3129,10 @@ NVENCSTATUS NVENCAPI NvEncUnregisterAsyncEvent                  (void* encoder, 
  * mapped resource is returned in the field NV_ENC_MAP_INPUT_RESOURCE::outputResourcePtr.
  * The NvEncodeAPI interface also returns the buffer format of the mapped resource
  * in the field NV_ENC_MAP_INPUT_RESOURCE::outbufferFmt.
- * This function provides synchronization guarantee that any direct3d or cuda
- * work submitted on the input buffer is completed before the buffer is used for encoding.
+ * This function provides synchronization guarantee that any graphics work submitted
+ * on the input buffer is completed before the buffer is used for encoding. This is
+ * also true for compute (i.e. CUDA) work, provided that the previous workload using
+ * the input resource was submitted to the default stream.
  * The client should not access any input buffer while they are mapped by the encoder.
  *
  * \param [in] encoder
@@ -2862,7 +3262,9 @@ NVENCSTATUS NVENCAPI NvEncInvalidateRefFrames(void* encoder, uint64_t invalidRef
  * Opens an encoding session and returns a pointer to the encoder interface in
  * the \p **encoder parameter. The client should start encoding process by calling
  * this API first. 
- * The client must pass a pointer to IDirect3DDevice9/CUDA interface in the \p *device parameter.
+ * The client must pass a pointer to IDirect3DDevice9 device or CUDA context in the \p *device parameter.
+ * For the OpenGL interface, \p device must be NULL. An OpenGL context must be current when
+ * calling all NvEncodeAPI functions.
  * If the creation of encoder session fails, the client must call ::NvEncDestroyEncoder API 
  * before exiting.
  *
@@ -2889,8 +3291,6 @@ NVENCSTATUS NVENCAPI NvEncOpenEncodeSessionEx                   (NV_ENC_OPEN_ENC
  * 
  * Registers a resource with the Nvidia Video Encoder Interface for book keeping.
  * The client is expected to pass the registered resource handle as well, while calling ::NvEncMapInputResource API.
- * This API is not implemented for the DirectX Interface.
- * DirectX based clients need not change their implementation.
  *
  * \param [in] encoder
  *   Pointer to the NVEncodeAPI interface.
@@ -2922,8 +3322,6 @@ NVENCSTATUS NVENCAPI NvEncRegisterResource                      (void* encoder, 
  * Unregisters a resource previously registered with the Nvidia Video Encoder Interface.
  * The client is expected to unregister any resource that it has registered with the 
  * Nvidia Video Encoder Interface before destroying the resource.
- * This API is not implemented for the DirectX Interface.
- * DirectX based clients need not change their implementation.
  *
  * \param [in] encoder
  *   Pointer to the NVEncodeAPI interface.
@@ -3091,6 +3489,22 @@ NVENCSTATUS NVENCAPI NvEncRunMotionEstimationOnly               (void* encoder, 
 NVENCSTATUS NVENCAPI NvEncodeAPIGetMaxSupportedVersion          (uint32_t* version);
 
 
+// NvEncodeAPIGetLastErrorString
+/**
+ * \brief Get the description of the last error reported by the API.
+ *
+ * This function returns a null-terminated string that can be used by clients to better understand the reason
+ * for failure of a previous API call.
+ *
+ * \param [in] encoder
+ *   Pointer to the NvEncodeAPI interface.
+ *
+ * \return
+ *   Pointer to buffer containing the details of the last error encountered by the API.
+ */
+const char * NVENCAPI NvEncGetLastErrorString          (void* encoder);
+
+
 /// \cond API PFN
 /*
  *  Defines API function pointers 
@@ -3132,6 +3546,8 @@ typedef NVENCSTATUS (NVENCAPI* PNVENCRECONFIGUREENCODER)        (void* encoder, 
 typedef NVENCSTATUS (NVENCAPI* PNVENCCREATEMVBUFFER)            (void* encoder, NV_ENC_CREATE_MV_BUFFER* createMVBufferParams);
 typedef NVENCSTATUS (NVENCAPI* PNVENCDESTROYMVBUFFER)           (void* encoder, NV_ENC_OUTPUT_PTR mvBuffer);
 typedef NVENCSTATUS (NVENCAPI* PNVENCRUNMOTIONESTIMATIONONLY)   (void* encoder, NV_ENC_MEONLY_PARAMS* meOnlyParams);
+typedef const char * (NVENCAPI* PNVENCGETLASTERROR)             (void* encoder);
+typedef NVENCSTATUS (NVENCAPI* PNVENCSETIOCUDASTREAMS)          (void* encoder, NV_ENC_CUSTREAM_PTR inputStream, NV_ENC_CUSTREAM_PTR outputStream);
 
 
 /// \endcond
@@ -3184,7 +3600,9 @@ typedef struct _NV_ENCODE_API_FUNCTION_LIST
     PNVENCCREATEMVBUFFER            nvEncCreateMVBuffer;               /**< [out]: Client should access ::NvEncCreateMVBuffer API through this pointer.             */
     PNVENCDESTROYMVBUFFER           nvEncDestroyMVBuffer;              /**< [out]: Client should access ::NvEncDestroyMVBuffer API through this pointer.            */
     PNVENCRUNMOTIONESTIMATIONONLY   nvEncRunMotionEstimationOnly;      /**< [out]: Client should access ::NvEncRunMotionEstimationOnly API through this pointer.    */
-    void*                           reserved2[281];                    /**< [in]:  Reserved and must be set to NULL                                                 */
+    PNVENCGETLASTERROR              nvEncGetLastErrorString;           /**< [out]: Client should access ::nvEncGetLastErrorString API through this pointer.         */
+    PNVENCSETIOCUDASTREAMS          nvEncSetIOCudaStreams;             /**< [out]: Client should access ::nvEncSetIOCudaStreams API through this pointer.           */
+    void*                           reserved2[279];                    /**< [in]:  Reserved and must be set to NULL                                                 */
 } NV_ENCODE_API_FUNCTION_LIST;
 
 /** Macro for constructing the version field of ::_NV_ENCODEAPI_FUNCTION_LIST. */

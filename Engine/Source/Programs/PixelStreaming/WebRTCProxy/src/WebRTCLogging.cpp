@@ -34,12 +34,14 @@ class FWebRTCLogger : public rtc::LogSink
 			"[%s]: WEBRTC: %s",
 			DateTime.ToString(),
 			message.c_str());
-
+		
+		#ifdef _WIN32
 		if (PARAM_DbgWindow_WebRTC)
 		{
 			OutputDebugStringA(Msg);
 		}
-
+		#endif
+		
 		FileLog.Write(Msg);
 	}
 
