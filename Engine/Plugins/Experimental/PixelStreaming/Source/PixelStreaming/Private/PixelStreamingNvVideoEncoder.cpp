@@ -232,7 +232,6 @@ FPixelStreamingNvVideoEncoder::FPixelStreamingNvVideoEncoderImpl::FPixelStreamin
 			Result = NvEncodeAPI->nvEncOpenEncodeSessionEx(&OpenEncodeSessionExParams, &EncoderInterface);
 			checkf(NV_RESULT(Result), TEXT("Unable to open NvEnc encoding session (status: %d)"), Result);
 		}
-	} 
 	#elif PLATFORM_LINUX
 		// Open an encoding session
 		{
