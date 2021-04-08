@@ -252,6 +252,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnBackBufferReadyToPresent, SWindow&, const FTexture2DRHIRef&);
 	FOnBackBufferReadyToPresent& OnBackBufferReadyToPresent() { return OnBackBufferReadyToPresentDelegate; }
 
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnBackAndDepthBufferReadyToPresent, SWindow&, const FTexture2DRHIRef&, const FTexture2DRHIRef&);
+	FOnBackAndDepthBufferReadyToPresent& OnBackAndDepthBufferReadyToPresent() { return OnBackAndDepthBufferReadyToPresentDelegate; }
+
 	/** 
 	 * Sets which color vision filter to use
 	 */
@@ -512,6 +515,7 @@ protected:
 	FOnPostResizeWindowBackbuffer PostResizeBackBufferDelegate;
 
 	FOnBackBufferReadyToPresent OnBackBufferReadyToPresentDelegate;
+	FOnBackAndDepthBufferReadyToPresent OnBackAndDepthBufferReadyToPresentDelegate;
 
 	/**
 	 * Necessary to grab before flushing the resource pool, as it may be being 

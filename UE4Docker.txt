@@ -112,6 +112,8 @@ IPV6（曾经报错，可能是无关问题）
 	adamrehn的例子**	https://github.com/adamrehn/ue4-example-dockerfiles/tree/master/pixel-streaming/4.23
 	adamrehn的问题列表	https://github.com/adamrehn/pixel-streaming-linux/issues
 	支持NVENC的显卡列表 https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new
+						https://www.nvidia.cn/geforce/10-series/
+	中国人写的介绍：https://blog.csdn.net/sddxccj/article/details/105795094
 *********************************************************************************************************
 直接在真机运行（非容器），游戏程序必须在窗口顶层
 	1、WebServer
@@ -200,12 +202,54 @@ https://www.codercto.com/a/92824.html
 UE4深度
 https://blog.csdn.net/weixin_41263449/article/details/107584536
 
+OnBackBufferReadyToPresentDelegate.Broadcast(*DrawCommandParams.Window, BackBuffer);
+1、从backbuffer里取东西
+2、往backbuffer里加东西
+3、增加一个OnDepthBufferReadyToPresentDelegate
+
+FOnBackBufferReadyToPresent OnBackBufferReadyToPresentDelegate;
+FOnBackAndDepthBufferReadyToPresent OnBackAndDepthBufferReadyToPresentDelegate;
+
+struct DepthPixel	//定义深度像素结构体
+	{
+		float depth;
+		char stencil;
+		char unused1;
+		char unused2;
+		char unused3;
+	};
+
+	float* cpuDataPtr;	// Texture深度值数组首地址
+	TArray<DepthPixel> mydata;	//最终获取色深度值数据
+	FIntPoint buffsize;	//深度长宽大小X和Y
+
+	ENQUEUE_RENDER_COMMAND(ReadSurfaceFloatCommand)(	// 将读取深度数据的命令推给渲染线程进行执行
+		[&cpuDataPtr, &mydata, &buffsize](FRHICommandListImmediate& RHICmdList) //&cpuDataPtr, &mydata, &buffsize为传入的外部参数
+	{
+		FSceneRenderTargets::Get(RHICmdList).AdjustGBufferRefCount(RHICmdList, 1);
+		FTexture2DRHIRef uTex2DRes = FSceneRenderTargets::Get(RHICmdList).GetSceneDepthSurface();	
+		buffsize = uTex2DRes->GetSizeXY();
+         uint32 sx = buffsize.X;
+		uint32 sy = buffsize.Y;
+         mydata.AddUninitialized(sx * sy);
+         uint32 Lolstrid = 0;
+		cpuDataPtr = (float*)RHILockTexture2D(uTex2DRes,0,RLM_ReadOnly,Lolstrid,true);	// 加锁 获取可读depth Texture深度值数组首地址
+		memcpy(mydata.GetData(), cpuDataPtr, sx * sy * sizeof(DepthPixel));		//复制深度数据
+		RHIUnlockTexture2D(uTex2DRes, 0, true);	//解锁
+		FSceneRenderTargets::Get(RHICmdList).AdjustGBufferRefCount(RHICmdList, -1);	
+
+	});
+	FlushRenderingCommands();	//等待渲染线程执行
+
+	mydata; 	//最终获取深度数据
 
 
 
 
 
 
+热更新
+https://github.com/hxhb/HotPatcher
 
 
 

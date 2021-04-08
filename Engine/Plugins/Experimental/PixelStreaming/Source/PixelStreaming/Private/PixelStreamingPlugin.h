@@ -42,7 +42,7 @@ private:
 
 	bool CheckPlatformCompatibility() const;
 	void UpdateViewport(FSceneViewport* Viewport);
-	void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
+	void OnBackAndDepthBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer/*, const FTexture2DRHIRef& DepthBuffer*/);
 	void OnPreResizeWindowBackbuffer(void* BackBuffer);
 	void OnPreResizeWindowBackbuffer_RenderThread();
 	void OnGameModePostLogin(AGameModeBase* GameMode, APlayerController* NewPlayer);

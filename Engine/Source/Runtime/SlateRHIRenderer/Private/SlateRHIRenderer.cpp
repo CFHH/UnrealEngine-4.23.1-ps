@@ -31,6 +31,7 @@
 #include "RenderTargetPool.h"
 #include "RendererUtils.h"
 #include "HAL/LowLevelMemTracker.h"
+#include "Runtime/Renderer/Private/PostProcess/SceneRenderTargets.h"
 
 DECLARE_CYCLE_STAT(TEXT("Slate RT: Rendering"), STAT_SlateRenderingRTTime, STATGROUP_Slate);
 DECLARE_CYCLE_STAT(TEXT("Slate RT: Create Batches"), STAT_SlateRTCreateBatches, STATGROUP_Slate);
@@ -988,6 +989,30 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 
 			// Fire delegate to inform bound functions the back buffer is ready to be captured.
 			OnBackBufferReadyToPresentDelegate.Broadcast(*DrawCommandParams.Window, BackBuffer);
+
+			// Depth Buffer
+			FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+			static int invalid_cnt = 0;
+			if (SceneContext.SceneDepthZ.IsValid())
+			{
+				//FSceneRenderTargetItem& item = SceneContext.SceneDepthZ->GetRenderTargetItem();
+				//const FTexture2DRHIRef DepthBuffer = (const FTexture2DRHIRef&)item.TargetableTexture;
+				FTexture2DRHIRef DepthBuffer = SceneContext.GetSceneDepthTexture();  //GetSceneDepthSurface；GetSceneDepthTexture；
+				//if (BackBuffer->GetSizeX() != DepthBuffer->GetSizeX() || BackBuffer->GetSizeY() != DepthBuffer->GetSizeY())
+					//UE_LOG(LogSlate, Warning, TEXT("！！！！！OnBackAndDepthBufferReady: BackBufferSize(%d, %d), DepthBufferSize(%d, %d)"), BackBuffer->GetSizeX(), BackBuffer->GetSizeY(), DepthBuffer->GetSizeX(), DepthBuffer->GetSizeY());
+				OnBackAndDepthBufferReadyToPresentDelegate.Broadcast(*DrawCommandParams.Window, BackBuffer, DepthBuffer);
+			}
+			else
+			{
+				++invalid_cnt;
+				if (invalid_cnt % 100 == 0)
+					UE_LOG(LogSlate, Warning, TEXT("！！！！！OnBackAndDepthBufferReady: Invalid DepthBuffer, %d"), invalid_cnt);
+			}
+
+			//SceneContext.AdjustGBufferRefCount(RHICmdList, 1);
+			//FTexture2DRHIRef DepthBuffer = SceneContext.GetSceneDepthSurface();
+			//OnBackAndDepthBufferReadyToPresentDelegate.Broadcast(*DrawCommandParams.Window, BackBuffer, DepthBuffer);
+			//SceneContext.AdjustGBufferRefCount(RHICmdList, -1);
 		}
 	}
 

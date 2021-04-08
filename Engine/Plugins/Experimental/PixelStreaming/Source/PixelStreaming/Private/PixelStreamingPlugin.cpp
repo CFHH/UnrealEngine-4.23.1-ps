@@ -24,7 +24,10 @@
 
 #if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
+	//#pragma comment(lib, "../../../../../../Intermediate/Build/Win64/UE4Editor/Development/SlateRHIRenderer/UE4Editor-SlateRHIRenderer.lib")
+	//#pragma comment(lib, "G:/UnrealEngine-4.23.1-ps/Engine/Intermediate/Build/Win64/UE4Editor/Development/SlateRHIRenderer/UE4Editor-SlateRHIRenderer.lib")
 #endif
+#include "Runtime/Renderer/Private/PostProcess/SceneRenderTargets.h"
 
 DEFINE_LOG_CATEGORY(PixelStreaming);
 DEFINE_LOG_CATEGORY(PixelStreamingInput);
@@ -62,7 +65,8 @@ void FPixelStreamingPlugin::StartupModule()
 	{
 		if (FSlateApplication::IsInitialized())
 		{
-			FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().AddRaw(this, &FPixelStreamingPlugin::OnBackBufferReady_RenderThread);
+			FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().AddRaw(this, &FPixelStreamingPlugin::OnBackAndDepthBufferReady_RenderThread);
+			//FSlateApplication::Get().GetRenderer()->OnBackAndDepthBufferReadyToPresent().AddRaw(this, &FPixelStreamingPlugin::OnBackAndDepthBufferReady_RenderThread);
 			FSlateApplication::Get().GetRenderer()->OnPreResizeWindowBackBuffer().AddRaw(this, &FPixelStreamingPlugin::OnPreResizeWindowBackbuffer);
 		}
 
@@ -81,6 +85,7 @@ void FPixelStreamingPlugin::ShutdownModule()
 	if (FSlateApplication::IsInitialized())
 	{
 		FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().RemoveAll(this);
+		//FSlateApplication::Get().GetRenderer()->OnBackAndDepthBufferReadyToPresent().RemoveAll(this);
 		FSlateApplication::Get().GetRenderer()->OnPreResizeWindowBackBuffer().RemoveAll(this);
 	}
 
@@ -117,7 +122,18 @@ void FPixelStreamingPlugin::UpdateViewport(FSceneViewport* Viewport)
 	FRHIViewport* const ViewportRHI = Viewport->GetViewportRHI().GetReference();
 }
 
-void FPixelStreamingPlugin::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer)
+/*
+struct DepthPixel
+{
+	float depth;
+	char stencil;
+	char unused1;
+	char unused2;
+	char unused3;
+};
+*/
+
+void FPixelStreamingPlugin::OnBackAndDepthBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer/*, const FTexture2DRHIRef& DepthBuffer*/)
 {
 	check(IsInRenderingThread());
 
@@ -130,6 +146,16 @@ void FPixelStreamingPlugin::OnBackBufferReady_RenderThread(SWindow& SlateWindow,
 
 		Streamer = MakeUnique<FStreamer>(*IP, Port, BackBuffer);
 	}
+	
+	/*
+	FTexture2DRHIRef DepthBuffer;
+	ENQUEUE_RENDER_COMMAND(FPixelStreamingOnBackBufferReady)(
+		[&DepthBuffer](FRHICommandListImmediate& RHICmdList)
+		{
+			DepthBuffer = FSceneRenderTargets::Get(RHICmdList).GetSceneDepthSurface();
+		});
+	FlushRenderingCommands();
+	*/
 
 	Streamer->OnFrameBufferReady(BackBuffer);
 }
