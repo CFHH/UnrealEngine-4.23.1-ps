@@ -1060,7 +1060,7 @@ static void ConvertRAWSurfaceDataToFColor(DXGI_FORMAT Format, uint32 Width, uint
 				FColor NormalizedColor = FLinearColor(LinearValue, LinearValue, LinearValue, 0).ToFColor(bLinearToGamma);
 				FMemory::Memcpy(DestPtr++, &NormalizedColor, sizeof(FColor));
 				SrcPtr+=1; // todo: copies only depth, need to check how this format is read
-				UE_LOG(LogD3D12RHI, Warning, TEXT("CPU read of R32G8X24 is not tested and may not function."));
+				//UE_LOG(LogD3D12RHI, Warning, TEXT("CPU read of R32G8X24 is not tested and may not function."));
 			}
 		}
 	}

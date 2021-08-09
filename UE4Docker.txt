@@ -2,6 +2,7 @@
 	https://blog.csdn.net/xiao_sheng_jun/article/details/103643390
 	https://blog.csdn.net/qq_41565526/article/details/88900171
 	注意一定要关闭安全启动，然后修改quite splash nomodeset，不然不能创建EFI系统分区，不要创建/boot、/tmp、/usr等分区，如果怕私人文件丢失，可以单创建/home分区
+	远程桌面 https://baijiahao.baidu.com/s?id=1642550036775110946&wfr=spider&for=pc
 安装钉钉
 	https://blog.csdn.net/longinus_li/article/details/82913409
 	下载在这里https://github.com/nashaofu/dingtalk/releases/
@@ -30,7 +31,7 @@
 	https://github.com/adamrehn/ue4-docker
 	https://github.com/adamrehn/ue4-cloud-rendering-demo
 	当前github右边显示最新的版本是4.25.4，但是UE4 Cloud Rendering Demo里指定4.20.3
-	git clone -b 4.26 https://github.com/EpicGames/UnrealEngine.git
+	git clone -b 4.26.2-release https://github.com/EpicGames/UnrealEngine.git
 	测试https://gitlab.com/ue4-test-projects
 	Pixel Stream版本 https://github.com/adamrehn/UnrealEngine
 
@@ -99,6 +100,55 @@ IPV6（曾经报错，可能是无关问题）
 原项目的问题，根本没用到UE4Capture这个插件
 	#include "../../Plugins/UE4Capture/Source/UE4Capture/Public/CaptureGameMode.h"
 	class AStreamingDemoGameMode : public ACaptureGameMode
+	
+【获取深度、保存图片（参考，都不正确）】
+	https://blog.csdn.net/weixin_41263449/article/details/107584536
+	https://stubbornhuang.blog.csdn.net/article/details/109765201
+	https://forums.unrealengine.com/t/how-to-access-color-and-depth-buffer-of-a-ue4-game/884
+	设置窗口大小 https://blog.csdn.net/qq_33727884/article/details/89487292
+	重力 https://blog.csdn.net/qq_33727884/article/details/89668973
+	不能YAW旋转，蓝图打开actor，取消“用控制器旋转Yaw”的打勾
+	彻底关闭后处理 https://www.cnblogs.com/AnKen/p/6573675.html sg.PostProcessQuality 0
+【获取cubemap】
+	https://www.youtube.com/watch?v=a5hy4QdcFGU
+	https://threejsfundamentals.org/threejs/lessons/threejs-backgrounds.html
+	https://docs.unrealengine.com/4.26/en-US/BlueprintAPI/Rendering/ExportRenderTarget/、
+	https://vicsdevblog.blogspot.com/2016/04/if-you-recently-got-htc-vive-or-you-are.html
+	https://cubebrush.co/blog/360-screenshots-in-unreal-engine
+【Pano】
+	安装Panoramic Capture Tool，插件里搜索pano
+	在UE4的内容浏览器右下角“视图选项”，勾选“显示插件内容”和“显示引擎内容”
+	然后在内容中找到“PanoramicCapture内容”文件夹，打开Assets，里面有个BP_Capture的actor，讲蓝图拖入场景，打开蓝图编辑器
+		编辑器第二列第一个，输出目录
+		第二列第二个，分辨率，默认6144，越大越清晰但越慢
+		第三列最后两个（Ambient Occlusion和Roughness），参数改成1
+		第四列第一个，8生成png，32生成exr
+		第五列，单视场或多视场，设1
+		断开最后两列之间的连线（ALT+鼠标左键点击那条线）
+		回到场景，打开世界场景设置，游戏模式选择“GameMode”
+		按~打开控制台，输入 SP.PanoramicScreenshot ，然后等2分钟
+	这些不支持：基于屏幕的效果（如面向摄像机的粒子、光束或渐晕），屏幕空间反射，所有光线追踪功能
+
+1、用代码执行命令，截图时改用发命令让pano做
+2、把pano的代码集成过来
+CaptureGameMode->SetPause(CapturePlayerController)
+CaptureGameMode->ClearPause()
+TickRenderingTickables
+
+
+
+【UE4的线程和同步】
+https://blog.csdn.net/wag2765/article/details/84775408?utm_medium=distribute.pc_relevant.none-task-blog-baidujs_title-1&spm=1001.2101.3001.4242
+https://michaeljcole.github.io/wiki.unrealengine.com/Multi-Threading:_How_to_Create_Threads_in_UE4/
+https://docs.unrealengine.com/en-US/API/Runtime/Core/HAL/FRunnable/index.html
+https://docs.unrealengine.com/en-US/API/Runtime/Core/HAL/FRunnableThread/index.html
+【UE4同步Synchronization】
+https://answers.unrealengine.com/questions/264977/how-to-use-fpthreadscriticalsection-make-data-thre.html
+https://docs.unrealengine.com/en-US/API/Runtime/Core/Misc/FScopeLock/index.html
+
+【*.build.cs】
+参考代码源文件 \Engine\Engine\Source\Programs\UnrealBuildTool\System\RulesCompiler.cs
+https://www.cnblogs.com/sevenyuan/p/7161516.html
 
 
 *********************************************************************************************************************************************************
@@ -199,66 +249,64 @@ https://www.codercto.com/a/92824.html
 
 
 
-UE4深度
-https://blog.csdn.net/weixin_41263449/article/details/107584536
-
-OnBackBufferReadyToPresentDelegate.Broadcast(*DrawCommandParams.Window, BackBuffer);
-1、从backbuffer里取东西
-2、往backbuffer里加东西
-3、增加一个OnDepthBufferReadyToPresentDelegate
-
-FOnBackBufferReadyToPresent OnBackBufferReadyToPresentDelegate;
-FOnBackAndDepthBufferReadyToPresent OnBackAndDepthBufferReadyToPresentDelegate;
-
-struct DepthPixel	//定义深度像素结构体
-	{
-		float depth;
-		char stencil;
-		char unused1;
-		char unused2;
-		char unused3;
-	};
-
-	float* cpuDataPtr;	// Texture深度值数组首地址
-	TArray<DepthPixel> mydata;	//最终获取色深度值数据
-	FIntPoint buffsize;	//深度长宽大小X和Y
-
-	ENQUEUE_RENDER_COMMAND(ReadSurfaceFloatCommand)(	// 将读取深度数据的命令推给渲染线程进行执行
-		[&cpuDataPtr, &mydata, &buffsize](FRHICommandListImmediate& RHICmdList) //&cpuDataPtr, &mydata, &buffsize为传入的外部参数
-	{
-		FSceneRenderTargets::Get(RHICmdList).AdjustGBufferRefCount(RHICmdList, 1);
-		FTexture2DRHIRef uTex2DRes = FSceneRenderTargets::Get(RHICmdList).GetSceneDepthSurface();	
-		buffsize = uTex2DRes->GetSizeXY();
-         uint32 sx = buffsize.X;
-		uint32 sy = buffsize.Y;
-         mydata.AddUninitialized(sx * sy);
-         uint32 Lolstrid = 0;
-		cpuDataPtr = (float*)RHILockTexture2D(uTex2DRes,0,RLM_ReadOnly,Lolstrid,true);	// 加锁 获取可读depth Texture深度值数组首地址
-		memcpy(mydata.GetData(), cpuDataPtr, sx * sy * sizeof(DepthPixel));		//复制深度数据
-		RHIUnlockTexture2D(uTex2DRes, 0, true);	//解锁
-		FSceneRenderTargets::Get(RHICmdList).AdjustGBufferRefCount(RHICmdList, -1);	
-
-	});
-	FlushRenderingCommands();	//等待渲染线程执行
-
-	mydata; 	//最终获取深度数据
 
 
+*********************************************************************************************************************************************************
+*****gRPC************************************************************************************************************************************************
+*********************************************************************************************************************************************************
+https://github.com/grpc
+https://github.com/grpc/grpc-node/tree/master/packages/grpc-js
+https://grpc.io/docs/languages/cpp/quickstart/
+https://grpc.io/docs/languages/node/quickstart/
+https://github.com/plasticbox/grpc-windows/blob/master/grpc_clone.bat
+gRPC 官方文档中文版 http://doc.oschina.net/grpc?t=58008
+
+一个看起来挺神奇的工具 https://github.com/microsoft/vcpkg
+
+安装 https://github.com/grpc/grpc/blob/master/BUILDING.md
+安装和使用主要参考这篇 https://blog.csdn.net/joy2528/article/details/106026904
+别人的安装脚本 https://github.com/plasticbox/grpc-windows
+指定运行时库模式（/MD、/MT） https://blog.csdn.net/qq_32883463/article/details/81872743
+使用proto和gRPC https://www.pressc.cn/930.html
+
+【HTTP访问gRPC】
+ ？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？
+【关闭grpc服务】
+https://stackoverflow.com/questions/35708348/grpc-what-is-the-recommended-way-to-shut-down-an-asynchronous-server-in-c#:~:text=TL%3BDR%3A%20You%20must%20call,service)%20to%20shut%20down%20cleanly.
+【UE4和gRPC error C4125】
+这篇很重要 https://nomanslambda.com/grpc-ue4/
+这也很重要，编译脚本的关键参考 https://github.com/vizor-games/InfraworldRuntime
+https://medium.com/@rasielll/grpc-with-ue4-dddd832f049f
+https://github.com/code4game/libprotobuf_ue4/issues/4
+https://medium.com/@0xflarion/using-ue4-w-google-protocol-buffers-ae7cab820d84
 
 
-
-
-热更新
-https://github.com/hxhb/HotPatcher
-
-
-
-
-
-
-
-
-
+编译和安装
+【编译安装grpc】进入cmake目录
+md build
+cd build
+cmake ../.. -G "Visual Studio 15 2017 Win64" -Wno-dev -DCMAKE_INSTALL_PREFIX="D:/grpc_sdk/win64"  -DgRPC_INSTALL=ON
+#cmake ../.. -G "Visual Studio 15 2017 Win64" -Wno-dev -DCMAKE_INSTALL_PREFIX="D:/grpc_sdk/win64"  -DgRPC_INSTALL=ON -DCMAKE_USER_MAKE_RULES_OVERRIDE="../MSVC_MD2MT.cmake"
+cmake --build . --config Release
+cmake --install . --config Release 【CMAKE_INSTALL_PREFIX竟然没用 https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX.html】
+【编译安装abseil】进入third_party\abseil-cpp\CMake
+md build
+cd build
+cmake ../.. -G "Visual Studio 15 2017 Win64" -DCMAKE_INSTALL_PREFIX="D:/grpc_sdk/win64" -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE
+cmake --build . --config Release
+cmake --install . --config Release
+【编译helloworld】
+进入examples\cpp\helloworld目录
+md cmake
+cd cmake
+cmake .. -G "Visual Studio 15 2017 Win64" -Wno-dev -DCMAKE_PREFIX_PATH="D:/grpc_sdk/win64" 
+cmake --build . --config Release
+【生成proto】
+protoc -I="." --grpc_out="./helloworld" --cpp_out="./helloworld" --plugin=protoc-gen-grpc="D:/grpc_sdk/win64/bin/grpc_cpp_plugin.exe" "./helloworld.proto"
+【js连c++服务器】
+.\greeter_server.exe
+examples\node> npm install
+examples/node/dynamic_codegen> node greeter_client.js
 
 
 
@@ -279,7 +327,9 @@ https://github.com/hxhb/HotPatcher
 
 
 
-
+*********************************************************************************************************************************************************
+*****UE4Capture（没用了）********************************************************************************************************************************
+*********************************************************************************************************************************************************
 
 #include "../../Plugins/UE4Capture/Source/UE4Capture/Public/CaptureGameMode.h"
 class AStreamingDemoGameMode : public ACaptureGameMode
@@ -289,11 +339,6 @@ class AStreamingDemoGameMode : public ACaptureGameMode
 #RUN ls /home/ue4/.conan/data/boost
 #RUN rm /home/ue4/.conan/data/boost/1.67.0 -r -f
 #RUN conan install boost/1.67.0@conan/stable
-
-
-
-
-
 
 
 
