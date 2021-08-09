@@ -3731,6 +3731,10 @@ bool UEngine::Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 		GStatProcessingViewportClient = GameViewport;
 	}
 
+	if (GameViewport->Exec(InWorld, Cmd, Ar))
+	{
+		return true;
+	}
 
 	// See if any other subsystems claim the command.
 	if (StaticExec(InWorld, Cmd,Ar) == true)
